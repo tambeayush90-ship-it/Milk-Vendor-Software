@@ -98,7 +98,7 @@ export function AddEntry() {
   return (
     <div className="p-4 pb-24 min-h-[100dvh] flex flex-col bg-white">
       <header className="h-auto bg-white border-b border-slate-200 px-4 md:px-8 py-4 flex items-center -mt-4 -mx-4 md:-mx-8 mb-8 gap-4">
-        <button onClick={() => navigate(-1)} className="p-2 -ml-2 rounded-full hover:bg-slate-100 text-slate-600 transition">
+        <button onClick={() => navigate('/')} className="p-2 -ml-2 rounded-full hover:bg-slate-100 text-slate-600 transition">
           <ArrowLeft size={24} />
         </button>
         <div>
