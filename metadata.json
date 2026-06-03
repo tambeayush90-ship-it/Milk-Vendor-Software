@@ -1,0 +1,8 @@
+{
+  "name": "Remix: Remix: Remix: Milk Vendor Dashboard",
+  "description": "A milk vendor app to manage customer milk provisions, daily entries, monthly billing, and real-time backup sync to Google Drive and Google Sheets.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

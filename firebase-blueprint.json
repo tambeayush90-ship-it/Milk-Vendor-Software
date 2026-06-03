@@ -1,0 +1,46 @@
+{
+  "entities": {
+    "customer": {
+      "title": "Customer",
+      "description": "A milk buyer/customer created by the user",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "The user ID of the owner" },
+        "code": { "type": "string" },
+        "name": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "milk_type": { "type": "string", "enum": ["cow", "buffalo", "both"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "code", "milk_type", "createdAt", "updatedAt"]
+    },
+    "milkEntry": {
+      "title": "MilkEntry",
+      "description": "A daily milk entry for a customer",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "customer_code": { "type": "string" },
+        "amount_liters": { "type": "number" },
+        "milk_type": { "type": "string", "enum": ["cow", "buffalo"] },
+        "date": { "type": "string" },
+        "price_per_liter": { "type": "number" },
+        "total_price": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "customer_code", "amount_liters", "milk_type", "date", "price_per_liter", "total_price", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/customers/{customerId}": {
+      "schema": { "$ref": "#/entities/customer" },
+      "description": "Store all customers across the app. Separated by userId."
+    },
+    "/milk_entries/{entryId}": {
+      "schema": { "$ref": "#/entities/milkEntry" },
+      "description": "Store all milk entries across the app. Separated by userId."
+    }
+  }
+}
