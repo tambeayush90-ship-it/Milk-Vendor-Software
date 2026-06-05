@@ -194,16 +194,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       if (isOwner) {
-        // Fast instant verification using cached keys or memory first
-        const localCachedPass = cachedCloudPass.owner || localStorage.getItem('cached_owner_password') || 'SaiwaghOwner';
-        let correctPass = localCachedPass;
-
-        if (submittedPass !== localCachedPass) {
-          try {
-            correctPass = await getOwnerPassword();
-          } catch (err) {
-            console.warn('Real-time owner password fetch failed, using cached instead:', err);
-          }
+        // Try getting the newest Firestore cloud password first; fallback to local cache on failure (offline/timeout/network err)
+        let correctPass = 'SaiwaghOwner';
+        try {
+          correctPass = await getOwnerPassword();
+        } catch (err) {
+          console.warn('Real-time owner password fetch failed, using local/cache fallback:', err);
+          correctPass = cachedCloudPass.owner || localStorage.getItem('cached_owner_password') || 'SaiwaghOwner';
         }
 
         if (submittedPass === correctPass) {
@@ -216,16 +213,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setError('Invalid Owner password.');
         }
       } else if (lowerId === 'sai wagh' || lowerId === 'saiwagh') {
-        // Fast instant verification using cached keys or memory first
-        const localCachedPass = cachedCloudPass.vendor || localStorage.getItem('cached_vendor_password') || 'Saiwagh1234';
-        let correctPass = localCachedPass;
-
-        if (submittedPass !== localCachedPass) {
-          try {
-            correctPass = await getVendorPassword();
-          } catch (err) {
-            console.warn('Real-time vendor password fetch failed, using cached instead:', err);
-          }
+        // Try getting the newest Firestore cloud password first; fallback to local cache on failure (offline/timeout/network err)
+        let correctPass = 'Saiwagh1234';
+        try {
+          correctPass = await getVendorPassword();
+        } catch (err) {
+          console.warn('Real-time vendor password fetch failed, using local/cache fallback:', err);
+          correctPass = cachedCloudPass.vendor || localStorage.getItem('cached_vendor_password') || 'Saiwagh1234';
         }
 
         if (submittedPass === correctPass) {
