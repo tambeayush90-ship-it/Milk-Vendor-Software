@@ -145,8 +145,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       if (isOwner) {
-        // High Speed Instant Login Check using prefetched memory cache, or fallback if not loaded yet
-        const correctPass = cachedCloudPass.owner || await getOwnerPassword();
+        // Try to get real-time owner password from the database, but fallback immediately to cache/default if slow or offline
+        let correctPass = cachedCloudPass.owner;
+        try {
+          correctPass = await getOwnerPassword();
+        } catch (err) {
+          console.warn('Real-time owner password fetch failed, using cached instead:', err);
+        }
+        if (!correctPass) {
+          correctPass = 'SaiwaghOwner'; // Safe default
+        }
+
         if (submittedPass === correctPass) {
           const u: User = { uid: 'owner', role: 'owner' };
           localStorage.setItem('localUser', u.uid);
@@ -157,8 +166,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setError('Invalid Owner password.');
         }
       } else if (lowerId === 'sai wagh' || lowerId === 'saiwagh') {
-        // High Speed Instant Login Check using prefetched memory cache, or fallback if not loaded yet
-        const correctPass = cachedCloudPass.vendor || await getVendorPassword();
+        // Try to get real-time vendor password from the database, but fallback immediately to cache/default if slow or offline
+        let correctPass = cachedCloudPass.vendor;
+        try {
+          correctPass = await getVendorPassword();
+        } catch (err) {
+          console.warn('Real-time vendor password fetch failed, using cached instead:', err);
+        }
+        if (!correctPass) {
+          correctPass = 'Saiwagh1234'; // Safe default
+        }
+
         if (submittedPass === correctPass) {
           const u: User = { uid: 'saiwagh', role: 'vendor' };
           localStorage.setItem('localUser', u.uid);

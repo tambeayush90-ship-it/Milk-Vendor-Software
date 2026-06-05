@@ -14,10 +14,36 @@ const DEFAULT_OWNER_PASSWORD = 'SaiwaghOwner';
 const CACHE_VENDOR_KEY = 'cached_vendor_password';
 const CACHE_OWNER_KEY = 'cached_owner_password';
 
+// Helper to wrap firestore writes with a timeout so they don't hang if offline
+async function setDocWithTimeout(ref: any, data: any, timeoutMs: number = 4000): Promise<void> {
+  const timeoutPromise = new Promise<void>((_, reject) => {
+    setTimeout(() => {
+      reject(new Error("Database write timed out: Please check your internet connection."));
+    }, timeoutMs);
+  });
+  await Promise.race([
+    setDoc(ref, data),
+    timeoutPromise
+  ]);
+}
+
+// Helper to wrap firestore reads with a timeout so they don't hang if offline
+async function getDocWithTimeout(ref: any, timeoutMs: number = 4000): Promise<any> {
+  const timeoutPromise = new Promise<any>((_, reject) => {
+    setTimeout(() => {
+      reject(new Error("Database read timed out: Please check your internet connection."));
+    }, timeoutMs);
+  });
+  return await Promise.race([
+    getDoc(ref),
+    timeoutPromise
+  ]);
+}
+
 export async function getVendorPassword(): Promise<string> {
   try {
     const authRef = doc(firestore, AUTH_DOC_PATH);
-    const snap = await getDoc(authRef);
+    const snap = await getDocWithTimeout(authRef);
     if (snap.exists()) {
       const data = snap.data();
       if (data && typeof data.password === 'string') {
@@ -27,7 +53,7 @@ export async function getVendorPassword(): Promise<string> {
       }
     }
     // If doesn't exist, seed the default
-    await setDoc(authRef, { password: DEFAULT_PASSWORD });
+    await setDocWithTimeout(authRef, { password: DEFAULT_PASSWORD });
     localStorage.setItem(CACHE_VENDOR_KEY, DEFAULT_PASSWORD);
     return DEFAULT_PASSWORD;
   } catch (err) {
@@ -39,14 +65,14 @@ export async function getVendorPassword(): Promise<string> {
 
 export async function updateVendorPassword(newPassword: string): Promise<void> {
   const authRef = doc(firestore, AUTH_DOC_PATH);
-  await setDoc(authRef, { password: newPassword });
+  await setDocWithTimeout(authRef, { password: newPassword });
   localStorage.setItem(CACHE_VENDOR_KEY, newPassword);
 }
 
 export async function getOwnerPassword(): Promise<string> {
   try {
     const authRef = doc(firestore, OWNER_AUTH_DOC_PATH);
-    const snap = await getDoc(authRef);
+    const snap = await getDocWithTimeout(authRef);
     if (snap.exists()) {
       const data = snap.data();
       if (data && typeof data.password === 'string') {
@@ -56,7 +82,7 @@ export async function getOwnerPassword(): Promise<string> {
       }
     }
     // If doesn't exist, seed the default
-    await setDoc(authRef, { password: DEFAULT_OWNER_PASSWORD });
+    await setDocWithTimeout(authRef, { password: DEFAULT_OWNER_PASSWORD });
     localStorage.setItem(CACHE_OWNER_KEY, DEFAULT_OWNER_PASSWORD);
     return DEFAULT_OWNER_PASSWORD;
   } catch (err) {
@@ -68,7 +94,8 @@ export async function getOwnerPassword(): Promise<string> {
 
 export async function updateOwnerPassword(newPassword: string): Promise<void> {
   const authRef = doc(firestore, OWNER_AUTH_DOC_PATH);
-  await setDoc(authRef, { password: newPassword });
+  await setDocWithTimeout(authRef, { password: newPassword });
   localStorage.setItem(CACHE_OWNER_KEY, newPassword);
 }
+
 
