@@ -42,12 +42,14 @@ export function Settings() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [passwordWarning, setPasswordWarning] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordError('');
+    setPasswordWarning('');
     setPasswordSuccess(false);
 
     if (newPassword.trim().length < 4) {
@@ -62,19 +64,27 @@ export function Settings() {
 
     setPasswordLoading(true);
     try {
+      let result;
       if (passwordTarget === 'vendor') {
-        await updateVendorPassword(newPassword);
+        result = await updateVendorPassword(newPassword);
       } else {
-        await updateOwnerPassword(newPassword);
+        result = await updateOwnerPassword(newPassword);
         // Save the updated password locally so the current active owner session remains synchronized
         localStorage.setItem('localUserPassword', newPassword);
       }
-      setPasswordSuccess(true);
+
+      if (result && !result.synced && result.warning) {
+        setPasswordWarning(result.warning);
+      } else {
+        setPasswordSuccess(true);
+      }
+      
       setNewPassword('');
       setConfirmPassword('');
       setTimeout(() => {
         setPasswordSuccess(false);
-      }, 3000);
+        setPasswordWarning('');
+      }, 5000);
     } catch (err: any) {
       console.error(err);
       const msg = err?.message || '';
@@ -397,6 +407,18 @@ export function Settings() {
             {passwordError && (
               <div className="p-3 bg-red-50 border border-red-100 text-red-600 rounded-xl text-sm">
                 {passwordError}
+              </div>
+            )}
+
+            {passwordWarning && (
+              <div className="p-4 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-xs leading-relaxed font-semibold flex items-start gap-2.5">
+                <svg className="w-5 h-5 text-amber-600 shrink-0 mt-0.5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <div>
+                  <p className="font-bold text-amber-900 mb-0.5">Offline-first Saved</p>
+                  <p className="text-amber-700 leading-tight font-medium">{passwordWarning}</p>
+                </div>
               </div>
             )}
 

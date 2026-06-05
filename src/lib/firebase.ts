@@ -15,7 +15,7 @@ const CACHE_VENDOR_KEY = 'cached_vendor_password';
 const CACHE_OWNER_KEY = 'cached_owner_password';
 
 // Helper to wrap firestore writes with a timeout so they don't hang if offline
-async function setDocWithTimeout(ref: any, data: any, timeoutMs: number = 15000): Promise<void> {
+async function setDocWithTimeout(ref: any, data: any, timeoutMs: number = 25000): Promise<void> {
   const timeoutPromise = new Promise<void>((_, reject) => {
     setTimeout(() => {
       reject(new Error("Database write timed out: Please check your internet connection."));
@@ -28,7 +28,7 @@ async function setDocWithTimeout(ref: any, data: any, timeoutMs: number = 15000)
 }
 
 // Helper to wrap firestore reads with a timeout so they don't hang if offline
-async function getDocWithTimeout(ref: any, timeoutMs: number = 8000): Promise<any> {
+async function getDocWithTimeout(ref: any, timeoutMs: number = 20000): Promise<any> {
   const timeoutPromise = new Promise<any>((_, reject) => {
     setTimeout(() => {
       reject(new Error("Database read timed out: Please check your internet connection."));
@@ -63,10 +63,23 @@ export async function getVendorPassword(): Promise<string> {
   }
 }
 
-export async function updateVendorPassword(newPassword: string): Promise<void> {
+export async function updateVendorPassword(newPassword: string): Promise<{ synced: boolean; warning?: string }> {
   const authRef = doc(firestore, AUTH_DOC_PATH);
-  await setDocWithTimeout(authRef, { password: newPassword });
   localStorage.setItem(CACHE_VENDOR_KEY, newPassword);
+  try {
+    // Use a generous 20-second timeout to ensure the server handshake has adequate time even on slower mobile connections
+    await setDocWithTimeout(authRef, { password: newPassword }, 20000);
+    return { synced: true };
+  } catch (err: any) {
+    console.warn("Cloud password sync timed out, but queued locally in Firestore & localStorage:", err);
+    if (err?.message?.includes("timed out")) {
+      return {
+        synced: false,
+        warning: "Saved successfully on this device! Your password will automatically sync to the cloud database once you connect to the internet."
+      };
+    }
+    throw err;
+  }
 }
 
 export async function getOwnerPassword(): Promise<string> {
@@ -92,10 +105,23 @@ export async function getOwnerPassword(): Promise<string> {
   }
 }
 
-export async function updateOwnerPassword(newPassword: string): Promise<void> {
+export async function updateOwnerPassword(newPassword: string): Promise<{ synced: boolean; warning?: string }> {
   const authRef = doc(firestore, OWNER_AUTH_DOC_PATH);
-  await setDocWithTimeout(authRef, { password: newPassword });
   localStorage.setItem(CACHE_OWNER_KEY, newPassword);
+  try {
+    // Use a generous 20-second timeout to ensure the server handshake has adequate time even on slower mobile connections
+    await setDocWithTimeout(authRef, { password: newPassword }, 20000);
+    return { synced: true };
+  } catch (err: any) {
+    console.warn("Cloud password sync timed out, but queued locally in Firestore & localStorage:", err);
+    if (err?.message?.includes("timed out")) {
+      return {
+        synced: false,
+        warning: "Saved successfully on this device! Your password will automatically sync to the cloud database once you connect to the internet."
+      };
+    }
+    throw err;
+  }
 }
 
 

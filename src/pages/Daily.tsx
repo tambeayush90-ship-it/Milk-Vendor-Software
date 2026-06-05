@@ -4,10 +4,13 @@ import { format } from 'date-fns';
 import { MilkEntry } from '../types';
 import { DollarSign, Droplet, Users, Download, FileText } from 'lucide-react';
 import { jsPDF } from 'jspdf';
+import { downloadCSV } from '../lib/utils';
 
 export function Daily() {
   const [entries, setEntries] = useState<MilkEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
 
   useEffect(() => {
     fetchTodayData();
@@ -69,17 +72,16 @@ export function Daily() {
       )
     ].join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
+    const filename = `daily_bills_${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    const result = downloadCSV(csvContent, filename);
 
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `daily_bills_${format(new Date(), 'yyyy-MM-dd')}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    if (result.copied) {
+      setToastMessage(`Saved as "${filename}" and copied to clipboard! You can paste/open it directly in Excel.`);
+    } else {
+      setToastMessage(`Saved as "${filename}"!`);
+    }
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 5000);
   };
 
   const handleExportPDF = () => {
@@ -259,6 +261,19 @@ export function Daily() {
           )}
         </div>
       </div>
+
+      {showToast && (
+        <div className="fixed bottom-6 left-4 right-4 md:left-1/2 md:-translate-x-1/2 md:max-w-md bg-slate-900 border border-slate-800 text-white p-4 rounded-2xl shadow-xl z-50 flex items-start gap-3 animate-bounce">
+          <div className="bg-emerald-500/20 p-2 rounded-lg text-emerald-400 shrink-0">
+            <svg className="w-5 h-5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7"></path></svg>
+          </div>
+          <div className="flex-1">
+            <p className="font-bold text-xs text-slate-100">Export Succeeded!</p>
+            <p className="text-[11px] text-slate-300 mt-0.5 leading-relaxed">{toastMessage}</p>
+          </div>
+          <button onClick={() => setShowToast(false)} className="text-slate-400 hover:text-white font-bold text-sm leading-none p-1">✕</button>
+        </div>
+      )}
     </div>
   );
 }
