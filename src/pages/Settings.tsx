@@ -75,8 +75,10 @@ export function Settings() {
       setTimeout(() => {
         setPasswordSuccess(false);
       }, 3000);
-    } catch (err) {
-      setPasswordError('Failed to sync password. Please check internet connection.');
+    } catch (err: any) {
+      console.error(err);
+      const msg = err?.message || '';
+      setPasswordError(`Failed to sync password: ${msg || 'Unknown issue'}. Please check internet connection.`);
     } finally {
       setPasswordLoading(false);
     }

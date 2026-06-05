@@ -22,4 +22,5 @@ export type MilkEntry = {
   date: string;
   price_per_liter: number;
   total_price: number;
+  returned_amount?: number;
 };

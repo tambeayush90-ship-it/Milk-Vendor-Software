@@ -12,3 +12,8 @@
     font-size: 16px;
   }
 }
+
+html, body {
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}

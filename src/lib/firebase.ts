@@ -15,7 +15,7 @@ const CACHE_VENDOR_KEY = 'cached_vendor_password';
 const CACHE_OWNER_KEY = 'cached_owner_password';
 
 // Helper to wrap firestore writes with a timeout so they don't hang if offline
-async function setDocWithTimeout(ref: any, data: any, timeoutMs: number = 4000): Promise<void> {
+async function setDocWithTimeout(ref: any, data: any, timeoutMs: number = 15000): Promise<void> {
   const timeoutPromise = new Promise<void>((_, reject) => {
     setTimeout(() => {
       reject(new Error("Database write timed out: Please check your internet connection."));
@@ -28,7 +28,7 @@ async function setDocWithTimeout(ref: any, data: any, timeoutMs: number = 4000):
 }
 
 // Helper to wrap firestore reads with a timeout so they don't hang if offline
-async function getDocWithTimeout(ref: any, timeoutMs: number = 4000): Promise<any> {
+async function getDocWithTimeout(ref: any, timeoutMs: number = 8000): Promise<any> {
   const timeoutPromise = new Promise<any>((_, reject) => {
     setTimeout(() => {
       reject(new Error("Database read timed out: Please check your internet connection."));

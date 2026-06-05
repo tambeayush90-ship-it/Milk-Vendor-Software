@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { db } from '../lib/db';
 import { format } from 'date-fns';
 import { MilkEntry } from '../types';
-import { DollarSign, Droplet, Users } from 'lucide-react';
+import { DollarSign, Droplet, Users, Download, FileText } from 'lucide-react';
+import { jsPDF } from 'jspdf';
 
 export function Daily() {
   const [entries, setEntries] = useState<MilkEntry[]>([]);
@@ -20,18 +21,150 @@ export function Daily() {
     const milkEntries = await db.getEntries();
     const filteredEntries = milkEntries
       .filter((e: any) => e.date === today)
-      .sort((a: any,b: any) => new Date(b.createdAt?.seconds * 1000 || 0).getTime() - new Date(a.createdAt?.seconds * 1000 || 0).getTime());
+      .sort((a: any, b: any) => new Date(b.createdAt?.seconds * 1000 || 0).getTime() - new Date(a.createdAt?.seconds * 1000 || 0).getTime());
 
     setEntries(filteredEntries);
     setLoading(false);
   };
 
-  const totalEarnings = entries.reduce((sum, e) => sum + (e.total_price || 0), 0);
   const totalCowLiters = entries.filter(e => e.milk_type === 'cow').reduce((sum, e) => sum + Number(e.amount_liters), 0);
   const totalBuffaloLiters = entries.filter(e => e.milk_type === 'buffalo').reduce((sum, e) => sum + Number(e.amount_liters), 0);
   
   // Unique customers served today
   const uniqueCustomerCodes = new Set(entries.map(e => e.customer_code));
+
+  const handleExportCSV = () => {
+    if (entries.length === 0) return;
+
+    const headers = [
+      'Customer Code',
+      'Quantity (L)',
+      'Milk Type'
+    ];
+
+    const rows = entries.map(e => [
+      e.customer_code,
+      (e.amount_liters || 0).toString() + ' L',
+      (e.milk_type || '').toUpperCase()
+    ]);
+
+    // Calculate totals
+    const totalLitersSum = entries.reduce((sum, e) => sum + Number(e.amount_liters || 0), 0);
+    rows.push([
+      'TOTAL',
+      totalLitersSum.toString() + ' L',
+      ''
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => 
+        row.map(cell => {
+          const val = cell || '';
+          if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+            return `"${val.replace(/"/g, '""')}"`;
+          }
+          return val;
+        }).join(',')
+      )
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `daily_bills_${format(new Date(), 'yyyy-MM-dd')}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportPDF = () => {
+    if (entries.length === 0) return;
+
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    const dateStr = format(new Date(), 'dd MMM yyyy');
+
+    // Header section matching brand colors
+    doc.setFillColor(30, 41, 59); // slate-800 background
+    doc.rect(0, 0, 210, 40, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(22);
+    doc.text('DAILY BILLS REPORT', 15, 18);
+
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(`Date: ${dateStr}`, 15, 26);
+    doc.text(`Total Servings: ${uniqueCustomerCodes.size} homes / codes`, 15, 32);
+
+    // Columns structure
+    doc.setTextColor(30, 41, 59);
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(11);
+
+    const headersY = 52;
+    doc.text('Customer Code', 20, headersY);
+    doc.text('Quantity (L)', 80, headersY);
+    doc.text('Milk Type', 140, headersY);
+
+    doc.setDrawColor(203, 213, 225); // slate-300
+    doc.line(15, headersY + 4, 195, headersY + 4);
+
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(10);
+    let y = 64;
+
+    const totalLitersSum = entries.reduce((sum, e) => sum + Number(e.amount_liters || 0), 0);
+
+    entries.forEach(entry => {
+      if (y > 270) {
+        doc.addPage();
+        y = 20;
+        doc.setFont('Helvetica', 'bold');
+        doc.text('Customer Code', 20, y);
+        doc.text('Quantity (L)', 80, y);
+        doc.text('Milk Type', 140, y);
+        doc.line(15, y + 4, 195, y + 4);
+        y += 12;
+        doc.setFont('Helvetica', 'normal');
+      }
+
+      doc.setDrawColor(241, 245, 249); // slate-100
+      doc.line(15, y + 2, 195, y + 2);
+
+      doc.text(entry.customer_code, 20, y);
+      doc.text(`${(entry.amount_liters || 0)} L`, 80, y);
+      doc.text((entry.milk_type || '').toUpperCase(), 140, y);
+      y += 10;
+    });
+
+    if (y > 250) {
+      doc.addPage();
+      y = 25;
+    }
+
+    doc.setDrawColor(148, 163, 184); // slate-400
+    doc.setLineWidth(0.5);
+    doc.line(15, y, 195, y);
+
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text('GRAND TOTAL', 20, y + 8);
+    doc.text(`${totalLitersSum} L`, 80, y + 8);
+    doc.text('', 140, y + 8);
+
+    doc.save(`daily_bills_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+  };
 
   if (loading) return <div className="p-6 flex justify-center items-center h-full"><div className="animate-spin w-8 h-8 rounded-full border-4 border-blue-600 border-t-transparent"></div></div>;
 
@@ -60,8 +193,29 @@ export function Daily() {
 
       <div className="flex-1">
         <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-slate-100 flex flex-col h-full mb-8">
-          <div className="flex justify-between items-center mb-6">
+          
+          <div className="flex justify-between items-center mb-6 flex-wrap gap-4">
             <h2 className="text-lg font-bold text-slate-800">Recent Entries</h2>
+            <div className="flex gap-2">
+              <button 
+                onClick={handleExportCSV}
+                disabled={entries.length === 0}
+                className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 disabled:opacity-50 px-3 py-2 rounded-lg font-medium text-xs transition-colors cursor-pointer"
+                title="Export Daily CSV file"
+              >
+                <Download className="w-3.5 h-3.5 text-slate-500" />
+                Daily CSV
+              </button>
+              <button 
+                onClick={handleExportPDF}
+                disabled={entries.length === 0}
+                className="flex items-center gap-1.5 bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-50 px-3 py-2 rounded-lg font-medium text-xs transition-colors cursor-pointer"
+                title="Open inside built-in device PDF Viewer"
+              >
+                <FileText className="w-3.5 h-3.5 text-slate-300" />
+                Open PDF
+              </button>
+            </div>
           </div>
           
           {entries.length === 0 ? (
@@ -92,6 +246,13 @@ export function Daily() {
                       </td>
                     </tr>
                   ))}
+                  <tr className="bg-slate-50/50 font-bold border-t border-slate-100 text-sm">
+                    <td className="px-4 py-4 text-slate-900">GRAND TOTAL</td>
+                    <td className="px-4 py-4 text-slate-800 text-right">
+                      {entries.reduce((sum, e) => sum + Number(e.amount_liters), 0)} L
+                    </td>
+                    <td></td>
+                  </tr>
                 </tbody>
               </table>
             </div>
