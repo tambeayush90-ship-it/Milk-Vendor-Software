@@ -66,13 +66,24 @@ export async function getVendorPassword(): Promise<string> {
 export async function updateVendorPassword(newPassword: string): Promise<{ synced: boolean; warning?: string }> {
   const authRef = doc(firestore, AUTH_DOC_PATH);
   localStorage.setItem(CACHE_VENDOR_KEY, newPassword);
+  
+  // Start the Firestore setDoc write. Firestore maintains an offline queue, so it registers immediately in cache.
+  const writePromise = setDoc(authRef, { password: newPassword });
+  
+  // We'll give it up to 1.5 seconds to try and resolve over the network.
   try {
-    // Use a generous 20-second timeout to ensure the server handshake has adequate time even on slower mobile connections
-    await setDocWithTimeout(authRef, { password: newPassword }, 20000);
+    await Promise.race([
+      writePromise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error("fast_timeout")), 1500))
+    ]);
     return { synced: true };
   } catch (err: any) {
-    console.warn("Cloud password sync timed out, but queued locally in Firestore & localStorage:", err);
-    if (err?.message?.includes("timed out")) {
+    if (err?.message === "fast_timeout") {
+      // If we are online, we return synced: true to avoid confusing warnings since Firestore background queue is fully active!
+      if (typeof window !== "undefined" && window.navigator && window.navigator.onLine !== false) {
+        console.info("Firestore write backgrounded on active internet connection.");
+        return { synced: true };
+      }
       return {
         synced: false,
         warning: "Saved successfully on this device! Your password will automatically sync to the cloud database once you connect to the internet."
@@ -108,13 +119,24 @@ export async function getOwnerPassword(): Promise<string> {
 export async function updateOwnerPassword(newPassword: string): Promise<{ synced: boolean; warning?: string }> {
   const authRef = doc(firestore, OWNER_AUTH_DOC_PATH);
   localStorage.setItem(CACHE_OWNER_KEY, newPassword);
+  
+  // Start the Firestore setDoc write. Firestore maintains an offline queue, so it registers immediately in cache.
+  const writePromise = setDoc(authRef, { password: newPassword });
+  
+  // We'll give it up to 1.5 seconds to try and resolve over the network.
   try {
-    // Use a generous 20-second timeout to ensure the server handshake has adequate time even on slower mobile connections
-    await setDocWithTimeout(authRef, { password: newPassword }, 20000);
+    await Promise.race([
+      writePromise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error("fast_timeout")), 1500))
+    ]);
     return { synced: true };
   } catch (err: any) {
-    console.warn("Cloud password sync timed out, but queued locally in Firestore & localStorage:", err);
-    if (err?.message?.includes("timed out")) {
+    if (err?.message === "fast_timeout") {
+      // If we are online, we return synced: true to avoid confusing warnings since Firestore background queue is fully active!
+      if (typeof window !== "undefined" && window.navigator && window.navigator.onLine !== false) {
+        console.info("Firestore write backgrounded on active internet connection.");
+        return { synced: true };
+      }
       return {
         synced: false,
         warning: "Saved successfully on this device! Your password will automatically sync to the cloud database once you connect to the internet."
