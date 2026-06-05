@@ -66,6 +66,8 @@ export function Settings() {
         await updateVendorPassword(newPassword);
       } else {
         await updateOwnerPassword(newPassword);
+        // Save the updated password locally so the current active owner session remains synchronized
+        localStorage.setItem('localUserPassword', newPassword);
       }
       setPasswordSuccess(true);
       setNewPassword('');

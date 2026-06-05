@@ -58,6 +58,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setPricesSet(true);
   };
 
+  // Eager prefetch cache for lightning-fast sign-in authentication
+  const [cachedCloudPass, setCachedCloudPass] = useState<{ vendor?: string; owner?: string }>({});
+
+  useEffect(() => {
+    // Eagerly prefetch latest cloud passwords to check credentials instantly upon form submission
+    const prefetchCloudPasswords = async () => {
+      try {
+        const [vPass, oPass] = await Promise.all([
+          getVendorPassword(),
+          getOwnerPassword(),
+        ]);
+        setCachedCloudPass({ vendor: vPass, owner: oPass });
+      } catch (e) {
+        console.warn('Silent eager password prefetch failed due to network:', e);
+      }
+    };
+    prefetchCloudPasswords();
+  }, [user]);
+
   useEffect(() => {
     const savedUser = localStorage.getItem('localUser');
     const savedRole = localStorage.getItem('localUserRole') as 'vendor' | 'owner' | null;
@@ -67,6 +86,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, []);
 
+  const logOut = () => {
+    localStorage.removeItem('localUser');
+    localStorage.removeItem('localUserRole');
+    localStorage.removeItem('localUserPassword');
+    setUser(null);
+  };
+
+  // Sync / Lock-check on active sessions
+  useEffect(() => {
+    const checkCredentialsInBg = async () => {
+      const savedUser = localStorage.getItem('localUser');
+      const savedRole = localStorage.getItem('localUserRole') as 'vendor' | 'owner' | null;
+      const savedPass = localStorage.getItem('localUserPassword');
+
+      if (!savedUser || !savedRole || !savedPass) return;
+
+      try {
+        let newestCloudPassword = "";
+        if (savedRole === 'owner') {
+          newestCloudPassword = await getOwnerPassword();
+        } else {
+          newestCloudPassword = await getVendorPassword();
+        }
+
+        if (newestCloudPassword && newestCloudPassword !== savedPass) {
+          console.warn("Cloud password mismatch detected (Owner changed the password). Logging out vendor session.");
+          logOut();
+        }
+      } catch (e) {
+        console.warn("Background credentials verification sync failed:", e);
+      }
+    };
+
+    checkCredentialsInBg();
+
+    // Verify credentials dynamically in the background every 15 seconds to lock the app instantly if owner updates the code
+    const interval = setInterval(checkCredentialsInBg, 15000);
+
+    // Also check when browser tab gains active focus back
+    window.addEventListener('focus', checkCredentialsInBg);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', checkCredentialsInBg);
+    };
+  }, [user]);
+
   const [loggingIn, setLoggingIn] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -75,23 +141,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoggingIn(true);
     const lowerId = inputId.trim().toLowerCase();
     const isOwner = lowerId === 'owner' || lowerId === 'admin' || lowerId === 'tambeayush90@gmail.com';
+    const submittedPass = inputPass.trim();
+
     try {
       if (isOwner) {
-        const correctPass = await getOwnerPassword();
-        if (inputPass.trim() === correctPass) {
+        // High Speed Instant Login Check using prefetched memory cache, or fallback if not loaded yet
+        const correctPass = cachedCloudPass.owner || await getOwnerPassword();
+        if (submittedPass === correctPass) {
           const u: User = { uid: 'owner', role: 'owner' };
           localStorage.setItem('localUser', u.uid);
           localStorage.setItem('localUserRole', u.role);
+          localStorage.setItem('localUserPassword', submittedPass);
           setUser(u);
         } else {
           setError('Invalid Owner password.');
         }
       } else if (lowerId === 'sai wagh' || lowerId === 'saiwagh') {
-        const correctPass = await getVendorPassword();
-        if (inputPass.trim() === correctPass) {
+        // High Speed Instant Login Check using prefetched memory cache, or fallback if not loaded yet
+        const correctPass = cachedCloudPass.vendor || await getVendorPassword();
+        if (submittedPass === correctPass) {
           const u: User = { uid: 'saiwagh', role: 'vendor' };
           localStorage.setItem('localUser', u.uid);
           localStorage.setItem('localUserRole', u.role);
+          localStorage.setItem('localUserPassword', submittedPass);
           setUser(u);
         } else {
           setError('Invalid Vendor password.');
@@ -105,12 +177,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoggingIn(false);
     }
-  };
-
-  const logOut = () => {
-    localStorage.removeItem('localUser');
-    localStorage.removeItem('localUserRole');
-    setUser(null);
   };
 
   if (loading) {
