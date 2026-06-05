@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { db, generateId } from '../lib/db';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2 } from 'lucide-react';
-import { COW_MILK_PRICE, BUFFALO_MILK_PRICE } from '../lib/utils';
+import { getCowMilkPrice, getBuffaloMilkPrice } from '../lib/utils';
 import { Customer } from '../types';
 import { format } from 'date-fns';
 import { triggerBackgroundSync } from '../lib/googleDriveAndSheets';
@@ -58,7 +58,7 @@ export function AddEntry() {
 
     // Determine config
     const mType = matchedCustomer.milk_type === 'both' ? 'buffalo' : matchedCustomer.milk_type; // Defaulting if both
-    const price = mType === 'cow' ? COW_MILK_PRICE : BUFFALO_MILK_PRICE;
+    const price = mType === 'cow' ? getCowMilkPrice() : getBuffaloMilkPrice();
 
     try {
       await db.saveEntry({

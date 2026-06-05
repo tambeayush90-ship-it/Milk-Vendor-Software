@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { db } from '../lib/db';
 import { format, startOfMonth, endOfMonth, parseISO, subMonths } from 'date-fns';
 import { MilkEntry } from '../types';
-import { Calendar, Users, Droplet, ChevronDown, ChevronRight } from 'lucide-react';
+import { Calendar, Users, Droplet, ChevronDown, ChevronRight, Download } from 'lucide-react';
 
 type DailyDetail = {
   customer_code: string;
@@ -97,16 +97,143 @@ export function Monthly() {
     // Add Total Row
     rows.push(['TOTAL', '', totalLitersMonth.toString()]);
     
-    const csvContent = "data:text/csv;charset=utf-8," 
-      + [headers.join(','), ...rows.map(e => e.join(','))].join("\n");
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => 
+        row.map(cell => {
+          const val = cell || '';
+          if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+            return `"${val.replace(/"/g, '""')}"`;
+          }
+          return val;
+        }).join(',')
+      )
+    ].join('\n');
       
-    const encodedUri = encodeURI(csvContent);
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
+    link.style.visibility = 'hidden';
+    link.setAttribute("href", url);
     link.setAttribute("download", `daily_summary_${format(selectedMonth, 'yyyy_MM')}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportBillsCSV = async () => {
+    try {
+      const start = format(startOfMonth(selectedMonth), 'yyyy-MM-dd');
+      const end = format(endOfMonth(selectedMonth), 'yyyy-MM-dd');
+
+      // Fetch entries and customers
+      const allEntries = await db.getEntries();
+      const allCustomers = await db.getCustomers();
+      const loadedPaidBills = JSON.parse(localStorage.getItem('paid_bills') || '{}');
+      
+      const entries = allEntries.filter((e: any) => e.date >= start && e.date <= end);
+
+      const aggregated = entries.reduce((acc, entry: MilkEntry) => {
+        if (!acc[entry.customer_code]) {
+          acc[entry.customer_code] = {
+            total_liters: 0,
+            total_amount: 0
+          };
+        }
+        acc[entry.customer_code].total_liters += Number(entry.amount_liters);
+        acc[entry.customer_code].total_amount += Number(entry.total_price || 0);
+        return acc;
+      }, {} as Record<string, any>);
+
+      const statsArray: { customer: any; total_liters: number; total_amount: number }[] = [];
+      Object.keys(aggregated).forEach(code => {
+        const c = allCustomers.find(cu => cu.code === code);
+        if (c) {
+          statsArray.push({
+            customer: c,
+            total_liters: aggregated[code].total_liters,
+            total_amount: aggregated[code].total_amount
+          });
+        }
+      });
+
+      // Sort by code
+      statsArray.sort((a, b) => {
+        const numA = parseInt(a.customer.code.replace(/\D/g, '')) || 0;
+        const numB = parseInt(b.customer.code.replace(/\D/g, '')) || 0;
+        return numA - numB;
+      });
+
+      if (statsArray.length === 0) {
+        alert('No record found to export for this month.');
+        return;
+      }
+
+      const headers = [
+        'Customer Code',
+        'Customer Name',
+        'WhatsApp/Phone',
+        'Milk Type',
+        'Total Liters Delivered',
+        'Total Amount (RS)',
+        'Payment Status'
+      ];
+
+      const rows = statsArray.map(s => {
+        const isPaid = loadedPaidBills[`${s.customer.code}_${selectedMonthStr}`];
+        return [
+          s.customer.code,
+          s.customer.name || 'Unknown',
+          s.customer.whatsapp || 'N/A',
+          s.customer.milk_type,
+          s.total_liters.toString(),
+          s.total_amount.toString(),
+          isPaid ? 'Paid' : 'Unpaid'
+        ];
+      });
+
+      // Add Total Row
+      const totalLiters = statsArray.reduce((sum, s) => sum + s.total_liters, 0);
+      const totalAmount = statsArray.reduce((sum, s) => sum + s.total_amount, 0);
+      rows.push([
+        'TOTAL',
+        '',
+        '',
+        '',
+        totalLiters.toString(),
+        totalAmount.toString(),
+        ''
+      ]);
+
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => 
+          row.map(cell => {
+            const val = cell || '';
+            if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+              return `"${val.replace(/"/g, '""')}"`;
+            }
+            return val;
+          }).join(',')
+        )
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `milk_bills_${selectedMonthStr}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const toggleDetails = (date: string) => {
@@ -115,7 +242,7 @@ export function Monthly() {
 
   return (
     <div className="p-4 pb-24 h-full flex flex-col bg-slate-50">
-      <header className="h-auto md:h-20 bg-white border-b border-slate-200 px-4 md:px-8 py-4 md:py-0 flex flex-col md:flex-row md:items-center justify-between -mt-4 -mx-4 md:-mx-8 mb-8 gap-4">
+      <header className="h-auto md:h-20 bg-white border-b border-slate-200 px-4 md:px-8 py-4 flex flex-col md:flex-row md:items-center justify-between -mt-4 -mx-4 md:-mx-8 mb-8 gap-4">
         <div>
           <h1 className="text-xl font-bold text-slate-900 tracking-tight">Monthly Daily Summary</h1>
           <p className="text-xs text-slate-400 uppercase tracking-widest">{format(selectedMonth, 'MMMM yyyy')}</p>
@@ -125,18 +252,31 @@ export function Monthly() {
             <p className="text-xs font-semibold text-blue-600 uppercase">Total Liters (Month)</p>
             <p className="text-lg font-bold text-blue-700">{totalLitersMonth} L</p>
           </div>
-          <button 
-            onClick={handleExportCSV}
-            disabled={stats.length === 0}
-            className="flex items-center gap-2 bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-50 px-4 py-2 rounded-lg font-medium text-sm transition-colors"
-          >
-            <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-            Export CSV
-          </button>
+          <div className="flex gap-2">
+            <button 
+              onClick={handleExportCSV}
+              disabled={stats.length === 0}
+              className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 disabled:opacity-50 px-3 py-2 rounded-lg font-medium text-xs transition-colors cursor-pointer"
+              title="Daily Volume Log"
+            >
+              <Download className="w-3.5 h-3.5 text-slate-500" />
+              Daily Log
+            </button>
+            <button 
+              onClick={handleExportBillsCSV}
+              disabled={stats.length === 0}
+              className="flex items-center gap-1.5 bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-50 px-3 py-2 rounded-lg font-medium text-xs transition-colors cursor-pointer"
+              title="Per-Person Account Bills"
+            >
+              <Download className="w-3.5 h-3.5 text-slate-300" />
+              Export Bills
+            </button>
+          </div>
         </div>
       </header>
 
-      <div className="flex justify-between items-center mb-6 gap-4 flex-wrap">
+      <div className="flex justify-between items-center mb-6 gap-4 flex-wrap pb-1">
+
         <select 
           className="bg-slate-900 text-white font-semibold rounded-full px-4 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-700 border-none max-w-[200px]"
           value={selectedMonthStr}

@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../components/AuthProvider';
-import { LogOut, Cloud, Check, Loader2, RefreshCw, ExternalLink } from 'lucide-react';
+import { LogOut, Cloud, Check, Loader2, RefreshCw, ExternalLink, Droplet, Coins, Lock } from 'lucide-react';
 import {
   connectGoogle,
   disconnectGoogle,
@@ -10,9 +10,11 @@ import {
   syncAllData,
   subscribeToGoogleConnection
 } from '../lib/googleDriveAndSheets';
+import { getCowMilkPrice, getBuffaloMilkPrice, setCustomMilkPrices } from '../lib/utils';
+import { updateVendorPassword, updateOwnerPassword } from '../lib/firebase';
 
 export function Settings() {
-  const { logOut } = useAuth();
+  const { logOut, user } = useAuth();
   const [connected, setConnected] = useState(isGoogleConnected());
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [spreadsheetId, setSpreadsheetId] = useState<string | null>(getLinkedSpreadsheetId());
@@ -20,6 +22,63 @@ export function Settings() {
   const [syncStatus, setSyncStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
   const [lastSynced, setLastSynced] = useState<string | null>(localStorage.getItem('last_backup_time'));
+
+  // Milk pricing configuration state
+  const [cowPrice, setCowPrice] = useState<number>(getCowMilkPrice());
+  const [buffaloPrice, setBuffaloPrice] = useState<number>(getBuffaloMilkPrice());
+  const [priceSuccess, setPriceSuccess] = useState(false);
+
+  const handleSavePrices = (e: React.FormEvent) => {
+    e.preventDefault();
+    setCustomMilkPrices(cowPrice, buffaloPrice);
+    setPriceSuccess(true);
+    setTimeout(() => {
+      setPriceSuccess(false);
+    }, 2500);
+  };
+
+  // Password change configuration state
+  const [passwordTarget, setPasswordTarget] = useState<'vendor' | 'owner'>('vendor');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [passwordLoading, setPasswordLoading] = useState(false);
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError('');
+    setPasswordSuccess(false);
+
+    if (newPassword.trim().length < 4) {
+      setPasswordError('Password must be at least 4 characters long.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Passwords do not match.');
+      return;
+    }
+
+    setPasswordLoading(true);
+    try {
+      if (passwordTarget === 'vendor') {
+        await updateVendorPassword(newPassword);
+      } else {
+        await updateOwnerPassword(newPassword);
+      }
+      setPasswordSuccess(true);
+      setNewPassword('');
+      setConfirmPassword('');
+      setTimeout(() => {
+        setPasswordSuccess(false);
+      }, 3000);
+    } catch (err) {
+      setPasswordError('Failed to sync password. Please check internet connection.');
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
 
   useEffect(() => {
     // Subscribe to Google OAuth Connection changes
@@ -209,6 +268,199 @@ export function Settings() {
             </div>
           )}
         </div>
+
+        {/* Milk Prices Configuration Card */}
+        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col gap-6">
+          <div className="space-y-1">
+            <h2 className="font-semibold text-lg text-slate-900 flex items-center gap-2">
+              <Coins className="w-5 h-5 text-indigo-600" />
+              Configure Milk Prices
+            </h2>
+            <p className="text-slate-500 text-sm">
+              Set custom price per liter for Cow milk and Buffalo milk. Newly logged entries will calculate bills using these rates.
+            </p>
+          </div>
+
+          <hr className="border-slate-100" />
+
+          <form onSubmit={handleSavePrices} className="space-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase mb-2 ml-1">
+                   Cow Milk Price (₹ / Liter)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-800"
+                    placeholder="e.g. 50"
+                    value={cowPrice}
+                    onChange={(e) => setCowPrice(parseFloat(e.target.value) || 0)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-400 uppercase mb-2 ml-1">
+                   Buffalo Milk Price (₹ / Liter)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-800"
+                    placeholder="e.g. 60"
+                    value={buffaloPrice}
+                    onChange={(e) => setBuffaloPrice(parseFloat(e.target.value) || 0)}
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+              <button
+                type="submit"
+                className="w-full sm:w-auto py-3 px-6 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded-xl text-sm transition cursor-pointer active:scale-95"
+              >
+                Save Custom Prices
+              </button>
+
+              {priceSuccess && (
+                <span className="text-emerald-600 text-sm font-bold flex items-center gap-1 animate-fade-in">
+                  <Check className="w-4 h-4 stroke-[3]" /> Prices updated successfully!
+                </span>
+              )}
+            </div>
+          </form>
+        </div>
+
+        {/* Custom Login Password configuration card */}
+        {user?.role === 'owner' ? (
+          <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col gap-6">
+            <div className="space-y-1">
+              <h2 className="font-semibold text-lg text-slate-900 flex items-center gap-2">
+                <Lock className="w-5 h-5 text-indigo-600" />
+                Security & Passwords
+              </h2>
+              <p className="text-slate-500 text-sm">
+                As the system Owner, you can change both the vendor sign-in password and your private owner password.
+              </p>
+            </div>
+
+            <hr className="border-slate-100" />
+
+            {/* Toggle switch */}
+            <div className="bg-slate-50 p-1.5 rounded-2xl flex border border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setPasswordTarget('vendor');
+                  setPasswordError('');
+                  setPasswordSuccess(false);
+                }}
+                className={`flex-1 py-2.5 text-xs font-bold text-center rounded-xl transition duration-150 cursor-pointer ${
+                  passwordTarget === 'vendor'
+                    ? 'bg-white text-indigo-700 shadow-sm border border-slate-100 font-extrabold'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Vendor Password
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPasswordTarget('owner');
+                  setPasswordError('');
+                  setPasswordSuccess(false);
+                }}
+                className={`flex-1 py-2.5 text-xs font-bold text-center rounded-xl transition duration-150 cursor-pointer ${
+                  passwordTarget === 'owner'
+                    ? 'bg-white text-indigo-700 shadow-sm border border-slate-100 font-extrabold'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Owner Password
+              </button>
+            </div>
+
+            {passwordError && (
+              <div className="p-3 bg-red-50 border border-red-100 text-red-600 rounded-xl text-sm">
+                {passwordError}
+              </div>
+            )}
+
+            {passwordSuccess && (
+              <div className="p-3 bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-xl text-sm font-semibold flex items-center gap-2 animate-fade-in">
+                <Check className="w-4 h-4 text-emerald-600 stroke-[3]" />{' '}
+                {passwordTarget === 'vendor' ? 'Vendor' : 'Owner'} password updated successfully on the cloud server!
+              </div>
+            )}
+
+            <form onSubmit={handleUpdatePassword} className="space-y-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase mb-2 ml-1">
+                    New {passwordTarget === 'vendor' ? 'Vendor' : 'Owner'} Password
+                  </label>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-800"
+                    placeholder="e.g. NewPass123"
+                    required
+                    disabled={passwordLoading}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase mb-2 ml-1">
+                    Confirm Password
+                  </label>
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-800"
+                    placeholder="Confirm New Password"
+                    required
+                    disabled={passwordLoading}
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+                <button
+                  type="submit"
+                  disabled={passwordLoading}
+                  className="w-full sm:w-auto py-3 px-6 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded-xl text-sm transition cursor-pointer active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {passwordLoading && <Loader2 className="w-4 h-4 animate-spin text-white" />}
+                  {passwordLoading ? 'Updating password...' : `Update ${passwordTarget === 'vendor' ? 'Vendor' : 'Owner'} Password`}
+                </button>
+              </div>
+            </form>
+          </div>
+        ) : (
+          <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex gap-4">
+            <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center text-amber-600 flex-shrink-0">
+              <Lock className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-slate-900 text-sm">Credentials Protection</h3>
+              <p className="text-slate-500 text-xs mt-0.5 leading-relaxed">
+                Password changes can only be initiated by the system **Owner**. If you need your login password changed, please request assistance from the Owner.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Existing account settings */}
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col gap-6">

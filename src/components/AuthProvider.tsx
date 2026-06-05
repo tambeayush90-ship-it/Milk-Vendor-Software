@@ -1,8 +1,10 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Coins, LogOut, Loader2 } from 'lucide-react';
+import { getVendorPassword, getOwnerPassword } from '../lib/firebase';
 
 export interface User {
   uid: string;
+  role: 'vendor' | 'owner';
 }
 
 interface AuthContextType {
@@ -30,31 +32,84 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [inputPass, setInputPass] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
+  // Custom pricing configuration state
+  const [pricesSet, setPricesSet] = useState(() => {
+    return localStorage.getItem('custom_cow_milk_price') !== null && 
+           localStorage.getItem('custom_buffalo_milk_price') !== null;
+  });
+
+  const [cowOnboardingPrice, setCowOnboardingPrice] = useState('');
+  const [buffaloOnboardingPrice, setBuffaloOnboardingPrice] = useState('');
+  const [setupError, setSetupError] = useState<string | null>(null);
+
+  const handleSavePrices = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSetupError(null);
+    const cp = parseFloat(cowOnboardingPrice);
+    const bp = parseFloat(buffaloOnboardingPrice);
+
+    if (isNaN(cp) || cp <= 0 || isNaN(bp) || bp <= 0) {
+      setSetupError('Please enter valid positive selling prices for both Cow and Buffalo milk.');
+      return;
+    }
+
+    localStorage.setItem('custom_cow_milk_price', cp.toString());
+    localStorage.setItem('custom_buffalo_milk_price', bp.toString());
+    setPricesSet(true);
+  };
+
   useEffect(() => {
     const savedUser = localStorage.getItem('localUser');
-    if (savedUser) {
-      setUser({ uid: savedUser });
+    const savedRole = localStorage.getItem('localUserRole') as 'vendor' | 'owner' | null;
+    if (savedUser && savedRole) {
+      setUser({ uid: savedUser, role: savedRole });
     }
     setLoading(false);
   }, []);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const [loggingIn, setLoggingIn] = useState(false);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (
-      (inputId.trim().toLowerCase() === 'sai wagh' || inputId.trim().toLowerCase() === 'saiwagh') && 
-      inputPass.trim() === 'Saiwagh1234'
-    ) {
-      const u = { uid: 'saiwagh' };
-      localStorage.setItem('localUser', u.uid);
-      setUser(u);
-    } else {
-      setError('Invalid ID or Password');
+    setLoggingIn(true);
+    const lowerId = inputId.trim().toLowerCase();
+    const isOwner = lowerId === 'owner' || lowerId === 'admin' || lowerId === 'tambeayush90@gmail.com';
+    try {
+      if (isOwner) {
+        const correctPass = await getOwnerPassword();
+        if (inputPass.trim() === correctPass) {
+          const u: User = { uid: 'owner', role: 'owner' };
+          localStorage.setItem('localUser', u.uid);
+          localStorage.setItem('localUserRole', u.role);
+          setUser(u);
+        } else {
+          setError('Invalid Owner password.');
+        }
+      } else if (lowerId === 'sai wagh' || lowerId === 'saiwagh') {
+        const correctPass = await getVendorPassword();
+        if (inputPass.trim() === correctPass) {
+          const u: User = { uid: 'saiwagh', role: 'vendor' };
+          localStorage.setItem('localUser', u.uid);
+          localStorage.setItem('localUserRole', u.role);
+          setUser(u);
+        } else {
+          setError('Invalid Vendor password.');
+        }
+      } else {
+        setError('Invalid ID. Use your name or "owner" to sign in.');
+      }
+    } catch (err) {
+      console.error(err);
+      setError('Could not reach server to authenticate. Please connect to internet.');
+    } finally {
+      setLoggingIn(false);
     }
   };
 
   const logOut = () => {
     localStorage.removeItem('localUser');
+    localStorage.removeItem('localUserRole');
     setUser(null);
   };
 
@@ -85,6 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 className="w-full p-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" 
                 placeholder="e.g. Sai Wagh"
                 required 
+                disabled={loggingIn}
               />
             </div>
             <div>
@@ -97,11 +153,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                   className="w-full p-3 pr-10 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" 
                   placeholder="Enter Password"
                   required 
+                  disabled={loggingIn}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
+                  disabled={loggingIn}
                 >
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
@@ -110,11 +168,97 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           </div>
           <button
             type="submit"
-            className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition"
+            disabled={loggingIn}
+            className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-55"
           >
-            Login
+            {loggingIn && <Loader2 className="w-4 h-4 animate-spin text-white" />}
+            {loggingIn ? 'Authenticating...' : 'Login'}
           </button>
         </form>
+      </div>
+    );
+  }
+
+  if (!pricesSet) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="max-w-lg w-full bg-white p-8 rounded-3xl shadow-sm border border-slate-100 space-y-6">
+          <div className="text-center space-y-2">
+            <div className="mx-auto w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600 mb-2">
+              <Coins className="w-6 h-6" />
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Set Initial Milk Rates</h1>
+            <p className="text-slate-500 text-sm max-w-sm mx-auto">
+              Welcome, vendor! Please set your primary selling price per liter for both Cow and Buffalo milk before adding customers.
+            </p>
+          </div>
+
+          {setupError && (
+            <div className="p-3.5 bg-red-50 border border-red-100 text-red-600 rounded-xl text-xs font-semibold">
+              {setupError}
+            </div>
+          )}
+
+          <form onSubmit={handleSavePrices} className="space-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">
+                  Cow Milk (₹ / Liter)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.1"
+                    className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-800"
+                    placeholder="e.g. 50"
+                    value={cowOnboardingPrice}
+                    onChange={(e) => setCowOnboardingPrice(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">
+                  Buffalo Milk (₹ / Liter)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">₹</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.1"
+                    className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-800"
+                    placeholder="e.g. 60"
+                    value={buffaloOnboardingPrice}
+                    onChange={(e) => setBuffaloOnboardingPrice(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 pt-2">
+              <button
+                type="submit"
+                className="w-full py-3.5 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition duration-150 shadow-lg shadow-indigo-600/20 active:scale-[0.98] cursor-pointer"
+              >
+                Establish Custom Milk Rates
+              </button>
+
+              <button
+                type="button"
+                onClick={logOut}
+                className="w-full py-2.5 px-4 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-sm transition font-medium flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <LogOut className="w-4 h-4 text-slate-400" />
+                Sign Out / Change User
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     );
   }
