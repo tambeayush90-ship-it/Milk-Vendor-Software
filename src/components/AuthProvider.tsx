@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Eye, EyeOff, Coins, LogOut, Loader2, Lock } from 'lucide-react';
-import { getVendorPassword, getOwnerPassword } from '../lib/firebase';
+import { onSnapshot, doc } from 'firebase/firestore';
+import { getVendorPassword, getOwnerPassword, firestore } from '../lib/firebase';
 
 export interface User {
   uid: string;
@@ -104,14 +105,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   };
 
-  // Sync / Lock-check on active sessions
+  // Real-time Firestore onSnapshot synchronization for active sessions
   useEffect(() => {
-    const checkCredentialsInBg = async () => {
-      const savedUser = localStorage.getItem('localUser');
-      const savedRole = localStorage.getItem('localUserRole') as 'vendor' | 'owner' | null;
-      const savedPass = localStorage.getItem('localUserPassword');
+    if (!user) return;
 
-      if (!savedUser || !savedRole || !savedPass) return;
+    const savedRole = user.role;
+    const docPath = savedRole === 'owner' ? 'vendor_config/owner_auth' : 'vendor_config/auth';
+    const authRef = doc(firestore, docPath);
+
+    console.info(`Attaching real-time password sync listener for active role: ${savedRole}`);
+
+    // Real-time listener immediately locks the session if password in the Firestore changes
+    const unsubscribe = onSnapshot(
+      authRef,
+      (snapshot) => {
+        if (!snapshot.exists()) return;
+        const data = snapshot.data();
+        if (data && typeof data.password === 'string') {
+          const cloudPass = data.password;
+          const savedPass = localStorage.getItem('localUserPassword');
+
+          if (savedPass && cloudPass !== savedPass) {
+            console.warn(`Real-time Cloud password mismatch detected for ${savedRole}. Locking session.`);
+            localStorage.setItem('app_session_locked', 'true');
+            setIsLocked(true);
+          }
+        }
+      },
+      (error) => {
+        console.warn(`Real-time onSnapshot listener failed for path ${docPath}:`, error);
+      }
+    );
+
+    // Lightweight tab focus verification helper to trigger single-shot verification
+    const checkCredentialsOnFocus = async () => {
+      const savedPass = localStorage.getItem('localUserPassword');
+      if (!savedPass) return;
 
       try {
         let newestCloudPassword = "";
@@ -122,26 +151,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (newestCloudPassword && newestCloudPassword !== savedPass) {
-          console.warn("Cloud password mismatch detected. Performance lock initiated.");
+          console.warn(`Tab focus Cloud password mismatch detected for ${savedRole}. Locking session.`);
           localStorage.setItem('app_session_locked', 'true');
           setIsLocked(true);
         }
       } catch (e) {
-        console.warn("Background credentials verification sync failed:", e);
+        console.warn("Tab focus credentials validation fail:", e);
       }
     };
 
-    checkCredentialsInBg();
-
-    // Verify credentials dynamically in the background every 15 seconds to lock the app instantly if owner updates the code
-    const interval = setInterval(checkCredentialsInBg, 15000);
-
-    // Also check when browser tab gains active focus back
-    window.addEventListener('focus', checkCredentialsInBg);
+    window.addEventListener('focus', checkCredentialsOnFocus);
 
     return () => {
-      clearInterval(interval);
-      window.removeEventListener('focus', checkCredentialsInBg);
+      console.info(`Unsubscribing real-time password sync listener for role: ${savedRole}`);
+      unsubscribe();
+      window.removeEventListener('focus', checkCredentialsOnFocus);
     };
   }, [user]);
 
