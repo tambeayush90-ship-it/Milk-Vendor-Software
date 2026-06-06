@@ -60,7 +60,7 @@ export function Settings() {
     setPingError(null);
     const start = performance.now();
     try {
-      const docPath = user?.role === 'owner' ? 'vendor_config/owner_auth' : 'vendor_config/auth';
+      const docPath = user?.role === 'owner' ? 'config/owner_auth' : 'config/auth';
       const snap = await getDocFromServer(doc(firestore, docPath));
       const end = performance.now();
       const diff = Math.round(end - start);
@@ -83,7 +83,7 @@ export function Settings() {
       const savedRole = user?.role;
       let cloudPass = "";
       
-      const docPath = savedRole === 'owner' ? 'vendor_config/owner_auth' : 'vendor_config/auth';
+      const docPath = savedRole === 'owner' ? 'config/owner_auth' : 'config/auth';
       const snap = await getDocFromServer(doc(firestore, docPath));
       
       if (snap.exists()) {
@@ -117,7 +117,7 @@ export function Settings() {
     setSyncFeedback(null);
     try {
       const savedPass = localStorage.getItem('localUserPassword') || 'SaiwaghOwner';
-      const docPath = 'vendor_config/owner_auth';
+      const docPath = 'config/owner_auth';
       await setDoc(doc(firestore, docPath), { password: savedPass });
       setSyncFeedback("Broadcast sent successfully! All other connected devices will sync/renew key handshake instantly.");
     } catch (err: any) {
@@ -450,10 +450,10 @@ export function Settings() {
             <div className="space-y-1">
               <h2 className="font-semibold text-lg text-slate-900 flex items-center gap-2">
                 <Lock className="w-5 h-5 text-indigo-600" />
-                Security & Passwords
+                Global Password Manager (Firestore 'config' Sync)
               </h2>
               <p className="text-slate-500 text-sm">
-                As the system Owner, you can change both the vendor sign-in password and your private owner password.
+                Configure credentials under the Firestore <span className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-indigo-700">config</span> collection. All active client instances monitor this document via <span className="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded text-indigo-700">onSnapshot</span> and will synchronize immediately.
               </p>
             </div>
 
@@ -474,7 +474,7 @@ export function Settings() {
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                Vendor Password
+                Global Vendor Password
               </button>
               <button
                 type="button"
@@ -489,8 +489,27 @@ export function Settings() {
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                Owner Password
+                System Owner Password
               </button>
+            </div>
+
+            {/* Active Strategy Details callout */}
+            <div className="p-3.5 bg-indigo-50/50 rounded-2xl border border-indigo-100/50 text-xs text-indigo-900 leading-relaxed font-semibold">
+              {passwordTarget === 'vendor' ? (
+                <p className="flex items-start gap-2">
+                  <span className="text-base">🛰️</span>
+                  <span>
+                    <strong>Real-Time Broadcast Active:</strong> Updating the Global Vendor password updates <span className="font-mono text-slate-800">config/auth</span>. Active instances will receive the modification instantly over the network and lock the workspace until correct verification is supplied.
+                  </span>
+                </p>
+              ) : (
+                <p className="flex items-start gap-2">
+                  <span className="text-base">🔐</span>
+                  <span>
+                    <strong>Owner Security Node:</strong> Updates <span className="font-mono text-slate-800">config/owner_auth</span>. Changing this updates your master console login. Ensure you remember the updated credential!
+                  </span>
+                </p>
+              )}
             </div>
 
             {passwordError && (
@@ -514,7 +533,7 @@ export function Settings() {
             {passwordSuccess && (
               <div className="p-3 bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-xl text-sm font-semibold flex items-center gap-2 animate-fade-in">
                 <Check className="w-4 h-4 text-emerald-600 stroke-[3]" />{' '}
-                {passwordTarget === 'vendor' ? 'Vendor' : 'Owner'} password updated successfully on the cloud server!
+                Firestore <span className="font-mono bg-emerald-100 px-1 py-0.2 rounded text-[11px]">config/{passwordTarget === 'vendor' ? 'auth' : 'owner_auth'}</span> document written & synchronized successfully!
               </div>
             )}
 
@@ -558,7 +577,7 @@ export function Settings() {
                   className="w-full sm:w-auto py-3 px-6 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded-xl text-sm transition cursor-pointer active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {passwordLoading && <Loader2 className="w-4 h-4 animate-spin text-white" />}
-                  {passwordLoading ? 'Updating password...' : `Update ${passwordTarget === 'vendor' ? 'Vendor' : 'Owner'} Password`}
+                  {passwordLoading ? 'Broadcasting values...' : `Broadcast New ${passwordTarget === 'vendor' ? 'Vendor' : 'Owner'} Password`}
                 </button>
               </div>
             </form>
@@ -571,7 +590,7 @@ export function Settings() {
             <div>
               <h3 className="font-semibold text-slate-900 text-sm">Credentials Protection</h3>
               <p className="text-slate-500 text-xs mt-0.5 leading-relaxed">
-                Password changes can only be initiated by the system **Owner**. If you need your login password changed, please request assistance from the Owner.
+                Password changes and credential broadcasts can only be triggered by the administrator **Owner**. If you need your login password changed, please request assistance from the Owner.
               </p>
             </div>
           </div>

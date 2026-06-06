@@ -5,8 +5,8 @@ import firebaseConfig from '../../firebase-applet-config.json';
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 export const firestore = getFirestore(app);
 
-const AUTH_DOC_PATH = 'vendor_config/auth';
-const OWNER_AUTH_DOC_PATH = 'vendor_config/owner_auth';
+const AUTH_DOC_PATH = 'config/auth';
+const OWNER_AUTH_DOC_PATH = 'config/owner_auth';
 const DEFAULT_PASSWORD = 'Saiwagh1234';
 const DEFAULT_OWNER_PASSWORD = 'SaiwaghOwner';
 

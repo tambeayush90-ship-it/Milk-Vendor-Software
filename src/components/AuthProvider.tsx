@@ -110,7 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!user) return;
 
     const savedRole = user.role;
-    const docPath = savedRole === 'owner' ? 'vendor_config/owner_auth' : 'vendor_config/auth';
+    const docPath = savedRole === 'owner' ? 'config/owner_auth' : 'config/auth';
     const authRef = doc(firestore, docPath);
 
     console.info(`Attaching real-time password sync listener for active role: ${savedRole}`);
