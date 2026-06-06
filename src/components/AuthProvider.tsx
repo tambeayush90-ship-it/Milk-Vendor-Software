@@ -1,11 +1,10 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Eye, EyeOff, Coins, LogOut, Loader2, Lock } from 'lucide-react';
-import { onSnapshot, doc } from 'firebase/firestore';
-import { getVendorPassword, getOwnerPassword, firestore } from '../lib/firebase';
+import { Eye, EyeOff, Coins, LogOut, Loader2 } from 'lucide-react';
+import { getVendorPassword } from '../lib/firebase';
 
 export interface User {
   uid: string;
-  role: 'vendor' | 'owner';
+  role: 'vendor';
 }
 
 interface AuthContextType {
@@ -32,15 +31,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [inputId, setInputId] = useState('');
   const [inputPass, setInputPass] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-
-  // States for locked vendor session
-  const [isLocked, setIsLocked] = useState(() => {
-    return localStorage.getItem('app_session_locked') === 'true';
-  });
-  const [unlockPassword, setUnlockPassword] = useState('');
-  const [showUnlockPassword, setShowUnlockPassword] = useState(false);
-  const [unlockError, setUnlockError] = useState<string | null>(null);
-  const [unlocking, setUnlocking] = useState(false);
 
   // Custom pricing configuration state
   const [pricesSet, setPricesSet] = useState(() => {
@@ -69,29 +59,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Eager prefetch cache for lightning-fast sign-in authentication
-  const [cachedCloudPass, setCachedCloudPass] = useState<{ vendor?: string; owner?: string }>({});
+  const [cachedCloudPass, setCachedCloudPass] = useState<string>('');
 
   useEffect(() => {
-    // Eagerly prefetch latest cloud passwords to check credentials instantly upon form submission
-    const prefetchCloudPasswords = async () => {
+    // Eagerly prefetch latest cloud password to check credentials instantly upon form submission
+    const prefetchCloudPassword = async () => {
       try {
-        const [vPass, oPass] = await Promise.all([
-          getVendorPassword(),
-          getOwnerPassword(),
-        ]);
-        setCachedCloudPass({ vendor: vPass, owner: oPass });
+        const vPass = await getVendorPassword();
+        setCachedCloudPass(vPass);
       } catch (e) {
         console.warn('Silent eager password prefetch failed due to network:', e);
       }
     };
-    prefetchCloudPasswords();
+    prefetchCloudPassword();
   }, [user]);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('localUser');
-    const savedRole = localStorage.getItem('localUserRole') as 'vendor' | 'owner' | null;
-    if (savedUser && savedRole) {
-      setUser({ uid: savedUser, role: savedRole });
+    const savedRole = localStorage.getItem('localUserRole') as 'vendor' | null;
+    if (savedUser && savedRole === 'vendor') {
+      setUser({ uid: savedUser, role: 'vendor' });
     }
     setLoading(false);
   }, []);
@@ -100,110 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('localUser');
     localStorage.removeItem('localUserRole');
     localStorage.removeItem('localUserPassword');
-    localStorage.removeItem('app_session_locked');
-    setIsLocked(false);
     setUser(null);
-  };
-
-  // Real-time Firestore onSnapshot synchronization for active sessions
-  useEffect(() => {
-    if (!user) return;
-
-    const savedRole = user.role;
-    const docPath = savedRole === 'owner' ? 'config/owner_auth' : 'config/auth';
-    const authRef = doc(firestore, docPath);
-
-    console.info(`Attaching real-time password sync listener for active role: ${savedRole}`);
-
-    // Real-time listener immediately locks the session if password in the Firestore changes
-    const unsubscribe = onSnapshot(
-      authRef,
-      (snapshot) => {
-        if (!snapshot.exists()) return;
-        const data = snapshot.data();
-        if (data && typeof data.password === 'string') {
-          const cloudPass = data.password;
-          const savedPass = localStorage.getItem('localUserPassword');
-
-          if (savedPass && cloudPass !== savedPass) {
-            console.warn(`Real-time Cloud password mismatch detected for ${savedRole}. Locking session.`);
-            localStorage.setItem('app_session_locked', 'true');
-            setIsLocked(true);
-          }
-        }
-      },
-      (error) => {
-        console.warn(`Real-time onSnapshot listener failed for path ${docPath}:`, error);
-      }
-    );
-
-    // Lightweight tab focus verification helper to trigger single-shot verification
-    const checkCredentialsOnFocus = async () => {
-      const savedPass = localStorage.getItem('localUserPassword');
-      if (!savedPass) return;
-
-      try {
-        let newestCloudPassword = "";
-        if (savedRole === 'owner') {
-          newestCloudPassword = await getOwnerPassword();
-        } else {
-          newestCloudPassword = await getVendorPassword();
-        }
-
-        if (newestCloudPassword && newestCloudPassword !== savedPass) {
-          console.warn(`Tab focus Cloud password mismatch detected for ${savedRole}. Locking session.`);
-          localStorage.setItem('app_session_locked', 'true');
-          setIsLocked(true);
-        }
-      } catch (e) {
-        console.warn("Tab focus credentials validation fail:", e);
-      }
-    };
-
-    window.addEventListener('focus', checkCredentialsOnFocus);
-
-    return () => {
-      console.info(`Unsubscribing real-time password sync listener for role: ${savedRole}`);
-      unsubscribe();
-      window.removeEventListener('focus', checkCredentialsOnFocus);
-    };
-  }, [user]);
-
-  const handleUnlock = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setUnlockError(null);
-    setUnlocking(true);
-    const submittedPass = unlockPassword.trim();
-
-    try {
-      const savedRole = localStorage.getItem('localUserRole') as 'vendor' | 'owner' | null;
-      if (!savedRole) {
-        logOut();
-        return;
-      }
-
-      let correctPass = "";
-      if (savedRole === 'owner') {
-        correctPass = await getOwnerPassword();
-      } else {
-        correctPass = await getVendorPassword();
-      }
-
-      if (submittedPass === correctPass) {
-        localStorage.setItem('localUserPassword', submittedPass);
-        localStorage.removeItem('app_session_locked');
-        setIsLocked(false);
-        setUnlockPassword('');
-        setUnlockError(null);
-      } else {
-        setUnlockError('Verification failed. Entered password does not match the new password.');
-      }
-    } catch (err: any) {
-      console.error(err);
-      setUnlockError(err?.message || 'Verification timed out. Please check your internet connection.');
-    } finally {
-      setUnlocking(false);
-    }
   };
 
   const [loggingIn, setLoggingIn] = useState(false);
@@ -213,37 +97,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     setLoggingIn(true);
     const lowerId = inputId.trim().toLowerCase();
-    const isOwner = lowerId === 'owner' || lowerId === 'admin' || lowerId === 'tambeayush90@gmail.com';
     const submittedPass = inputPass.trim();
 
     try {
-      if (isOwner) {
-        // Try getting the newest Firestore cloud password first; fallback to local cache on failure (offline/timeout/network err)
-        let correctPass = 'SaiwaghOwner';
-        try {
-          correctPass = await getOwnerPassword();
-        } catch (err) {
-          console.warn('Real-time owner password fetch failed, using local/cache fallback:', err);
-          correctPass = cachedCloudPass.owner || localStorage.getItem('cached_owner_password') || 'SaiwaghOwner';
-        }
-
-        if (submittedPass === correctPass) {
-          const u: User = { uid: 'owner', role: 'owner' };
-          localStorage.setItem('localUser', u.uid);
-          localStorage.setItem('localUserRole', u.role);
-          localStorage.setItem('localUserPassword', submittedPass);
-          setUser(u);
-        } else {
-          setError('Invalid Owner password.');
-        }
-      } else if (lowerId === 'sai wagh' || lowerId === 'saiwagh') {
+      if (lowerId === 'sai wagh' || lowerId === 'saiwagh') {
         // Try getting the newest Firestore cloud password first; fallback to local cache on failure (offline/timeout/network err)
         let correctPass = 'Saiwagh1234';
         try {
           correctPass = await getVendorPassword();
         } catch (err) {
           console.warn('Real-time vendor password fetch failed, using local/cache fallback:', err);
-          correctPass = cachedCloudPass.vendor || localStorage.getItem('cached_vendor_password') || 'Saiwagh1234';
+          correctPass = cachedCloudPass || localStorage.getItem('cached_vendor_password') || 'Saiwagh1234';
         }
 
         if (submittedPass === correctPass) {
@@ -256,7 +120,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setError('Invalid Vendor password.');
         }
       } else {
-        setError('Invalid ID. Use your name or "owner" to sign in.');
+        setError('Invalid ID. Use your name to sign in.');
       }
     } catch (err) {
       console.error(err);
@@ -270,76 +134,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-slate-50">
         <div className="animate-spin w-8 h-8 focus:outline-none border-4 border-blue-600 border-t-transparent rounded-full" />
-      </div>
-    );
-  }
-
-  if (isLocked) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <form onSubmit={handleUnlock} className="max-w-md w-full bg-white p-8 rounded-2xl shadow-sm border border-slate-100 text-center space-y-6">
-          <div className="flex flex-col items-center">
-            <div className="w-12 h-12 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mb-4">
-              <Lock size={24} className="stroke-[2.5]" />
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Session Locked</h1>
-            <p className="text-slate-500 mt-2 text-sm leading-relaxed">
-              The Owner updated your access password. Please enter the new password to unlock your session. Your stored local records remain perfectly safe on this device.
-            </p>
-          </div>
-
-          {unlockError && (
-            <div className="p-3 bg-rose-50 border border-rose-100 text-rose-600 rounded-lg text-xs font-semibold leading-relaxed text-left">
-              {unlockError}
-            </div>
-          )}
-
-          <div className="space-y-4 text-left">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">New Password</label>
-              <div className="relative">
-                <input 
-                  type={showUnlockPassword ? "text" : "password"} 
-                  value={unlockPassword} 
-                  onChange={e => setUnlockPassword(e.target.value)} 
-                  className="w-full p-3 pr-10 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-base" 
-                  placeholder="Enter New Password"
-                  required 
-                  disabled={unlocking}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowUnlockPassword(!showUnlockPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
-                  disabled={unlocking}
-                >
-                  {showUnlockPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            <button
-              type="submit"
-              disabled={unlocking}
-              className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-55"
-            >
-              {unlocking && <Loader2 className="w-4 h-4 animate-spin text-white" />}
-              {unlocking ? 'Verifying Password...' : 'Unlock Session'}
-            </button>
-
-            <button
-              type="button"
-              onClick={logOut}
-              disabled={unlocking}
-              className="w-full py-2 bg-transparent hover:bg-slate-50 text-slate-500 hover:text-slate-700 text-xs transition font-semibold rounded-lg flex items-center justify-center gap-1 cursor-pointer"
-            >
-              <LogOut size={14} />
-              Sign Out Entirely
-            </button>
-          </div>
-        </form>
       </div>
     );
   }
