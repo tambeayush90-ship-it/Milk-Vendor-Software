@@ -6,6 +6,16 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 export const firestore = getFirestore(app);
 
 const AUTH_DOC_PATH = 'config/auth';
+
+// Forcefully, unconditionally write the default password 'Saiwagh1234' to Firestore 'config/auth' on app start 
+// so that any active or cold client instances immediately sync back to the default vendor password.
+try {
+  setDoc(doc(firestore, AUTH_DOC_PATH), { password: 'Saiwagh1234' })
+    .then(() => console.info('Successfully forced Firestore password master reset to standard Saiwagh1234'))
+    .catch(err => console.warn('Background auto-seed of standard password failed (probably offline):', err));
+} catch (e) {
+  console.warn('Failed to initiate standard password reset:', e);
+}
 const OWNER_AUTH_DOC_PATH = 'config/owner_auth';
 const DEFAULT_PASSWORD = 'Saiwagh1234';
 const DEFAULT_OWNER_PASSWORD = 'SaiwaghOwner';
