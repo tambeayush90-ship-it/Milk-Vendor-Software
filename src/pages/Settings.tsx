@@ -11,6 +11,7 @@ import {
   subscribeToGoogleConnection
 } from '../lib/googleDriveAndSheets';
 import { getCowMilkPrice, getBuffaloMilkPrice, setCustomMilkPrices } from '../lib/utils';
+import { updateVendorPassword } from '../lib/firebase';
 
 export function Settings() {
   const { logOut, user } = useAuth();
@@ -26,6 +27,42 @@ export function Settings() {
   const [cowPrice, setCowPrice] = useState<number>(getCowMilkPrice());
   const [buffaloPrice, setBuffaloPrice] = useState<number>(getBuffaloMilkPrice());
   const [priceSuccess, setPriceSuccess] = useState(false);
+
+  // Vendor password update state
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [updatingPassword, setUpdatingPassword] = useState(false);
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError('');
+    setPasswordSuccess('');
+
+    if (newPassword.length < 4) {
+      setPasswordError('Password must be at least 4 characters long.');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Passwords do not match.');
+      return;
+    }
+
+    setUpdatingPassword(true);
+    try {
+      await updateVendorPassword(newPassword);
+      setPasswordSuccess('Password was updated successfully!');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err: any) {
+      console.error(err);
+      setPasswordError(err.message || 'Failed to update password.');
+    } finally {
+      setUpdatingPassword(false);
+    }
+  };
 
   const handleSavePrices = (e: React.FormEvent) => {
     e.preventDefault();
@@ -294,6 +331,78 @@ export function Settings() {
                 </span>
               )}
             </div>
+          </form>
+        </div>
+
+        {/* Vendor Passcode Settings Card */}
+        <div id="change-vendor-password-card" className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col gap-6">
+          <div className="space-y-1">
+            <h2 className="font-semibold text-lg text-slate-900 flex items-center gap-2">
+              <Lock className="w-5 h-5 text-indigo-600" />
+              Update Vendor Password
+            </h2>
+            <p className="text-slate-500 text-sm">
+              Change the master access passcode for the "Doodh Setu" vendor account.
+            </p>
+            <p className="text-amber-600 text-xs font-medium bg-amber-50/70 border border-amber-100 p-2.5 rounded-xl leading-relaxed mt-1">
+              ⚠️ Note: Changing this password will immediately lock and sign out all connected vendor devices (including this one), requiring the input of the new password to regain access.
+            </p>
+          </div>
+
+          <hr className="border-slate-100" />
+
+          {passwordError && (
+            <div className="p-3 bg-red-50 border border-red-100 text-red-600 rounded-xl text-sm">
+              {passwordError}
+            </div>
+          )}
+
+          {passwordSuccess && (
+            <div className="p-3 bg-emerald-50 border border-emerald-100 text-emerald-800 rounded-xl text-sm font-semibold flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-600 stroke-[3]" />
+              {passwordSuccess}
+            </div>
+          )}
+
+          <form onSubmit={handleUpdatePassword} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide">
+                  New Password
+                </label>
+                <input
+                  type="password"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-800"
+                  placeholder="Enter new password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wide">
+                  Confirm Password
+                </label>
+                <input
+                  type="password"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-800"
+                  placeholder="Confirm new password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={updatingPassword}
+              className="w-full sm:w-auto py-3 px-6 bg-slate-800 hover:bg-slate-900 border border-transparent disabled:opacity-50 text-white font-semibold rounded-xl text-sm transition flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+            >
+              {updatingPassword && <Loader2 className="w-4 h-4 animate-spin text-white" />}
+              {updatingPassword ? 'Updating...' : 'Update Password'}
+            </button>
           </form>
         </div>
 
