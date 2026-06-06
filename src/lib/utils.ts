@@ -28,17 +28,18 @@ export function setCustomMilkPrices(cowPrice: number, buffaloPrice: number) {
 
 /**
  * Downloads a CSV file with enhanced mobile WebView and browser compatibility.
- * It uses a base64 encoded local data URL so that mobile/nested iframe browsers
- * don't fail, and copies the data to the clipboard as a robust fallback.
+ * It uses the native Web Share API on mobile devices/wrappers, base64 encoded local data URL
+ * as a secondary solution, and copies the data to the clipboard as a robust fallback.
  */
-export function downloadCSV(csvContent: string, filename: string): { copied: boolean; downloaded: boolean } {
+export async function downloadCSV(csvContent: string, filename: string): Promise<{ copied: boolean; downloaded: boolean; shared: boolean }> {
   let downloaded = false;
   let copied = false;
+  let shared = false;
 
   // 1. Copy to clipboard automatically as a definitive safety net
   try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(csvContent);
+      await navigator.clipboard.writeText(csvContent);
       copied = true;
     } else {
       // Fallback text area copy for older/simple mobile webviews or insecure contexts
@@ -57,12 +58,47 @@ export function downloadCSV(csvContent: string, filename: string): { copied: boo
     console.warn("Auto-copy to clipboard failed: ", err);
   }
 
-  // 2. Generate Base64 Data URI to bypass typical WebView out-of-process Blob issues
+  const BOM = "\uFEFF";
+  const contentWithBOM = BOM + csvContent;
+
+  // 2. Web Share API - standard solution for mobile wrappers (like WebIntoApp.com / WebViews)
+  if (typeof navigator !== 'undefined' && navigator.share) {
+    try {
+      const file = new File([contentWithBOM], filename, { type: 'text/csv' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: filename,
+          text: `Exported CSV: ${filename}`
+        });
+        return { copied, downloaded: true, shared: true };
+      }
+    } catch (err: any) {
+      // User cancelling sharing is normal, don't fallback if they cancelled deliberately
+      if (err?.name === 'AbortError') {
+        console.info("User cancelled share dialog.");
+        return { copied, downloaded: false, shared: false };
+      }
+      console.warn("File share failed, trying text share fallback: ", err);
+    }
+
+    try {
+      await navigator.share({
+        title: filename,
+        text: csvContent
+      });
+      return { copied, downloaded: true, shared: true };
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        console.info("User cancelled text share dialog.");
+        return { copied, downloaded: false, shared: false };
+      }
+      console.warn("Text share failed, falling back to anchor downloads: ", err);
+    }
+  }
+
+  // 3. Generate Base64 Data URI to bypass typical WebView out-of-process Blob issues
   try {
-    // Add Unicode byte-order mark (BOM) so Excel opens UTF-8 files correctly
-    const BOM = "\uFEFF";
-    const contentWithBOM = BOM + csvContent;
-    
     // Safety UTF8 base64 encoding helper
     const base64Content = btoa(unescape(encodeURIComponent(contentWithBOM)));
     const dataUrl = `data:text/csv;base64,${base64Content}`;
@@ -94,7 +130,7 @@ export function downloadCSV(csvContent: string, filename: string): { copied: boo
     }
   }
 
-  return { copied, downloaded };
+  return { copied, downloaded, shared };
 }
 
 

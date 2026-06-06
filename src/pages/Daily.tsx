@@ -36,7 +36,7 @@ export function Daily() {
   // Unique customers served today
   const uniqueCustomerCodes = new Set(entries.map(e => e.customer_code));
 
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
     if (entries.length === 0) return;
 
     const headers = [
@@ -73,9 +73,11 @@ export function Daily() {
     ].join('\n');
 
     const filename = `daily_bills_${format(new Date(), 'yyyy-MM-dd')}.csv`;
-    const result = downloadCSV(csvContent, filename);
+    const result = await downloadCSV(csvContent, filename);
 
-    if (result.copied) {
+    if (result.shared) {
+      setToastMessage(`Export sheet opened successfully! Data also copied to clipboard as backup.`);
+    } else if (result.copied) {
       setToastMessage(`Saved as "${filename}" and copied to clipboard! You can paste/open it directly in Excel.`);
     } else {
       setToastMessage(`Saved as "${filename}"!`);

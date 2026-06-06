@@ -87,7 +87,7 @@ export function Monthly() {
 
   const totalLitersMonth = stats.reduce((sum, s) => sum + s.total_liters, 0);
 
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
     if (stats.length === 0) return;
     
     const headers = ['Date', 'Homes/Codes Served', 'Total Liters'];
@@ -114,9 +114,11 @@ export function Monthly() {
     ].join('\n');
       
     const filename = `daily_summary_${format(selectedMonth, 'yyyy_MM')}.csv`;
-    const result = downloadCSV(csvContent, filename);
+    const result = await downloadCSV(csvContent, filename);
 
-    if (result.copied) {
+    if (result.shared) {
+      setToastMessage(`Export sheet opened successfully! Data also copied to clipboard as backup.`);
+    } else if (result.copied) {
       setToastMessage(`Saved as "${filename}" and copied to clipboard! Ready to paste/open in Excel.`);
     } else {
       setToastMessage(`Saved as "${filename}"!`);
@@ -223,9 +225,11 @@ export function Monthly() {
       ].join('\n');
 
       const filename = `milk_bills_${selectedMonthStr}.csv`;
-      const result = downloadCSV(csvContent, filename);
+      const result = await downloadCSV(csvContent, filename);
 
-      if (result.copied) {
+      if (result.shared) {
+        setToastMessage(`Export sheet opened successfully! Data also copied to clipboard as backup.`);
+      } else if (result.copied) {
         setToastMessage(`Saved as "${filename}" and copied to clipboard! Ready to paste/open in Excel.`);
       } else {
         setToastMessage(`Saved as "${filename}"!`);

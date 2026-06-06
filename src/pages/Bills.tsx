@@ -85,7 +85,7 @@ export function Bills() {
     localStorage.setItem('paid_bills', JSON.stringify(newPaidBills));
   };
 
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
     if (stats.length === 0) return;
 
     const headers = [
@@ -139,9 +139,11 @@ export function Bills() {
     ].join('\n');
 
     const filename = `milk_bills_${selectedMonthStr}.csv`;
-    const result = downloadCSV(csvContent, filename);
+    const result = await downloadCSV(csvContent, filename);
 
-    if (result.copied) {
+    if (result.shared) {
+      setToastMessage(`Export sheet opened successfully! Data also copied to clipboard as backup.`);
+    } else if (result.copied) {
       setToastMessage(`Saved as "${filename}" and copied to clipboard! Ready to paste/open in Excel.`);
     } else {
       setToastMessage(`Saved as "${filename}"!`);
