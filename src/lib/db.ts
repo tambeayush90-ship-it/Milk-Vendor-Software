@@ -29,7 +29,7 @@ export const db = {
       const payload: Customer = {
         ...customer as Customer,
         id: customer.id || generateId(),
-        userId: 'milkvendor',
+        userId: 'doodhsetu',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -96,7 +96,7 @@ export const db = {
       const payload: MilkEntry = {
         ...entry as MilkEntry,
         id: entry.id || generateId(),
-        userId: 'milkvendor',
+        userId: 'doodhsetu',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
