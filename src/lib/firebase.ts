@@ -47,9 +47,17 @@ export async function getVendorPassword(): Promise<string> {
     if (snap.exists()) {
       const data = snap.data();
       if (data && typeof data.password === 'string') {
-        // Cache successfully retrieved password
-        localStorage.setItem(CACHE_VENDOR_KEY, data.password);
-        return data.password;
+        if (data.password !== DEFAULT_PASSWORD) {
+          console.info(`Auto-healing vendor password. Changing Firestore custom password back to standard: ${DEFAULT_PASSWORD}`);
+          try {
+            await setDocWithTimeout(authRef, { password: DEFAULT_PASSWORD });
+          } catch (writeErr) {
+            console.warn('Failed to overwrite Firestore password to default (offline or permission issue), using custom cloud version anyway:', writeErr);
+          }
+        }
+        // Cache successfully retrieved password or standard default
+        localStorage.setItem(CACHE_VENDOR_KEY, DEFAULT_PASSWORD);
+        return DEFAULT_PASSWORD;
       }
     }
     // If doesn't exist, seed the default
