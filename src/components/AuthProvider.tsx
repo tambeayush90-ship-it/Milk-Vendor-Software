@@ -129,18 +129,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const submittedPass = inputPass.trim();
 
     try {
-      if (lowerId === 'sai wagh' || lowerId === 'saiwagh') {
+      if (lowerId === 'milk vendor' || lowerId === 'milkvendor') {
         // Try getting the newest Firestore cloud password first; fallback to local cache on failure (offline/timeout/network err)
-        let correctPass = 'Saiwagh1234';
+        let correctPass = 'MilkJune26';
         try {
           correctPass = await getVendorPassword();
         } catch (err) {
           console.warn('Real-time vendor password fetch failed, using local/cache fallback:', err);
-          correctPass = cachedCloudPass || localStorage.getItem('cached_vendor_password') || 'Saiwagh1234';
+          correctPass = cachedCloudPass || localStorage.getItem('cached_vendor_password') || 'MilkJune26';
         }
 
         if (submittedPass === correctPass) {
-          const u: User = { uid: 'saiwagh', role: 'vendor' };
+          const u: User = { uid: 'milkvendor', role: 'vendor' };
           localStorage.setItem('localUser', u.uid);
           localStorage.setItem('localUserRole', u.role);
           localStorage.setItem('localUserPassword', submittedPass);
@@ -149,7 +149,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setError('Invalid Vendor password.');
         }
       } else {
-        setError('Invalid ID. Use your name to sign in.');
+        setError('Invalid ID. Use "Milk Vendor" to sign in.');
       }
     } catch (err) {
       console.error(err);
@@ -184,7 +184,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 value={inputId} 
                 onChange={e => setInputId(e.target.value)} 
                 className="w-full p-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                placeholder="e.g. Sai Wagh"
+                placeholder="e.g. Milk Vendor"
                 required 
                 disabled={loggingIn}
               />
