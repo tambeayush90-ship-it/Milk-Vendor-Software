@@ -7,15 +7,6 @@ export const firestore = getFirestore(app);
 
 const AUTH_DOC_PATH = 'config/auth';
 
-// Forcefully, unconditionally write the default password 'Sai123' to Firestore 'config/auth' on app start 
-// so that any active or cold client instances immediately sync back to the default vendor password.
-try {
-  setDoc(doc(firestore, AUTH_DOC_PATH), { password: 'Sai123' })
-    .then(() => console.info('Successfully forced Firestore password master reset to standard Sai123'))
-    .catch(err => console.warn('Background auto-seed of standard password failed (probably offline):', err));
-} catch (e) {
-  console.warn('Failed to initiate standard password reset:', e);
-}
 const OWNER_AUTH_DOC_PATH = 'config/owner_auth';
 const DEFAULT_PASSWORD = 'Sai123';
 const DEFAULT_OWNER_PASSWORD = 'SaiwaghOwner';
@@ -57,17 +48,10 @@ export async function getVendorPassword(): Promise<string> {
     if (snap.exists()) {
       const data = snap.data();
       if (data && typeof data.password === 'string') {
-        if (data.password !== DEFAULT_PASSWORD) {
-          console.info(`Auto-healing vendor password. Changing Firestore custom password back to standard: ${DEFAULT_PASSWORD}`);
-          try {
-            await setDocWithTimeout(authRef, { password: DEFAULT_PASSWORD });
-          } catch (writeErr) {
-            console.warn('Failed to overwrite Firestore password to default (offline or permission issue), using custom cloud version anyway:', writeErr);
-          }
-        }
-        // Cache successfully retrieved password or standard default
-        localStorage.setItem(CACHE_VENDOR_KEY, DEFAULT_PASSWORD);
-        return DEFAULT_PASSWORD;
+        const passwordInDb = data.password;
+        // Cache successfully retrieved password
+        localStorage.setItem(CACHE_VENDOR_KEY, passwordInDb);
+        return passwordInDb;
       }
     }
     // If doesn't exist, seed the default

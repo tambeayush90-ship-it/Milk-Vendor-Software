@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Eye, EyeOff, Coins, LogOut, Loader2 } from 'lucide-react';
-import { getVendorPassword } from '../lib/firebase';
+import { getVendorPassword, firestore } from '../lib/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 export interface User {
   uid: string;
@@ -61,6 +62,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Eager prefetch cache for lightning-fast sign-in authentication
   const [cachedCloudPass, setCachedCloudPass] = useState<string>('');
 
+  const logOut = () => {
+    localStorage.removeItem('localUser');
+    localStorage.removeItem('localUserRole');
+    localStorage.removeItem('localUserPassword');
+    setUser(null);
+  };
+
   useEffect(() => {
     // Eagerly prefetch latest cloud password to check credentials instantly upon form submission
     const prefetchCloudPassword = async () => {
@@ -74,6 +82,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     prefetchCloudPassword();
   }, [user]);
 
+  // Real-time security sync subscription: Lock out any device immediately if the vendor password changes
+  useEffect(() => {
+    const authRef = doc(firestore, 'config/auth');
+    const unsubscribe = onSnapshot(authRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        if (data && typeof data.password === 'string') {
+          const currentCloudPass = data.password;
+          setCachedCloudPass(currentCloudPass);
+
+          const savedUser = localStorage.getItem('localUser');
+          if (savedUser) {
+            const localPass = localStorage.getItem('localUserPassword');
+            // If local password doesn't match cloud password, lock them out!
+            if (localPass && localPass !== currentCloudPass) {
+              console.warn('Real-time security sync: Master vendor password mismatch detected! Locking session.');
+              logOut();
+            }
+          }
+        }
+      }
+    }, (err) => {
+      console.warn('Real-time password sync subscription issue (offline/permission):', err);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
   useEffect(() => {
     const savedUser = localStorage.getItem('localUser');
     const savedRole = localStorage.getItem('localUserRole') as 'vendor' | null;
@@ -82,13 +118,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     setLoading(false);
   }, []);
-
-  const logOut = () => {
-    localStorage.removeItem('localUser');
-    localStorage.removeItem('localUserRole');
-    localStorage.removeItem('localUserPassword');
-    setUser(null);
-  };
 
   const [loggingIn, setLoggingIn] = useState(false);
 
