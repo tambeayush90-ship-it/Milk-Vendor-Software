@@ -138,11 +138,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           const authRef = doc(firestore, 'config/auth');
           const snap = await getDoc(authRef);
-          let currentPass = 'MilkJune26';
+          let currentPass = 'Milk0626';
           let cloudSalt = '';
           if (snap.exists()) {
             const data = snap.data();
-            currentPass = data.password || 'MilkJune26';
+            currentPass = data.password || 'Milk0626';
             cloudSalt = data.sessionSalt || '';
           }
           setCachedCloudPass(currentPass);
@@ -157,7 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         } catch (err) {
           console.warn('Real-time password check on startup failed (offline fallback mode):', err);
-          const cachedPass = cachedCloudPass || localStorage.getItem('cached_vendor_password') || 'MilkJune26';
+          const cachedPass = cachedCloudPass || localStorage.getItem('cached_vendor_password') || 'Milk0626';
           if (!localPass || localPass !== cachedPass) {
             logOut();
           } else {
@@ -183,19 +183,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       if (lowerId === 'doodhsetu') {
         // Try getting the newest Firestore cloud password first; fallback to local cache on failure (offline/timeout/network err)
-        let correctPass = 'MilkJune26';
+        let correctPass = 'Milk0626';
         let cloudSalt = '';
         try {
           const authRef = doc(firestore, 'config/auth');
           const snap = await getDoc(authRef);
           if (snap.exists()) {
             const data = snap.data();
-            correctPass = data.password || 'MilkJune26';
+            correctPass = data.password || 'Milk0626';
             cloudSalt = data.sessionSalt || '';
           }
         } catch (err) {
           console.warn('Real-time vendor info fetch failed, using local/cache fallback:', err);
-          correctPass = cachedCloudPass || localStorage.getItem('cached_vendor_password') || 'MilkJune26';
+          correctPass = cachedCloudPass || localStorage.getItem('cached_vendor_password') || 'Milk0626';
         }
 
         if (submittedPass === correctPass) {

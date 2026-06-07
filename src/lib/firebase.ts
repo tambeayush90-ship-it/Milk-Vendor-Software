@@ -8,8 +8,35 @@ export const firestore = getFirestore(app);
 const AUTH_DOC_PATH = 'config/auth';
 
 const OWNER_AUTH_DOC_PATH = 'config/owner_auth';
-const DEFAULT_PASSWORD = 'MilkJune26';
+const DEFAULT_PASSWORD = 'Milk0626';
 const DEFAULT_OWNER_PASSWORD = 'SaiwaghOwner';
+
+// Auto-migrate master password to 'Milk0626' once if any client starts and finds an old password
+try {
+  const authRef = doc(firestore, AUTH_DOC_PATH);
+  getDoc(authRef).then((snap) => {
+    if (snap.exists()) {
+      const data = snap.data();
+      if (data && data.password !== 'Milk0626') {
+        console.info('Auto-migrating master password to Milk0626 and invalidating all legacy sessions.');
+        setDoc(authRef, {
+          password: 'Milk0626',
+          sessionSalt: Date.now().toString()
+        }).catch(err => console.warn('Failed to save migrated password to Firebase:', err));
+      }
+    } else {
+      // If no auth doc exists, seed it
+      setDoc(authRef, {
+        password: 'Milk0626',
+        sessionSalt: Date.now().toString()
+      }).catch(err => console.warn('Failed to seed master password:', err));
+    }
+  }).catch(err => {
+    console.warn('Silent password migration check/fetch failed:', err);
+  });
+} catch (e) {
+  console.warn('Failed to initiate standard password migration:', e);
+}
 
 // Local storage caching keys
 const CACHE_VENDOR_KEY = 'cached_vendor_password';
