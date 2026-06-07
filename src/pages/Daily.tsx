@@ -15,7 +15,8 @@ export function Daily() {
   // PWA installation states
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isInstalled, setIsInstalled] = useState(false);
-  const [showIOSHint, setShowIOSHint] = useState(false);
+  const [toastTitle, setToastTitle] = useState('Export Succeeded!');
+  const [toastType, setToastType] = useState<'success' | 'info'>('success');
 
   useEffect(() => {
     fetchTodayData();
@@ -55,8 +56,10 @@ export function Daily() {
         setDeferredPrompt(null);
       });
     } else {
-      // Prompt instructional pop-up modal for iOS Safari / manual adding
-      setShowIOSHint(true);
+      setToastTitle('Install DoodhSetu');
+      setToastType('info');
+      setToastMessage("Select 'Add to Home Screen' from your browser's options menu to install directly on your device.");
+      setShowToast(true);
     }
   };
 
@@ -126,6 +129,8 @@ export function Daily() {
     } else {
       setToastMessage(`Saved as "${filename}"!`);
     }
+    setToastTitle('Export Succeeded!');
+    setToastType('success');
     setShowToast(true);
     setTimeout(() => setShowToast(false), 5000);
   };
@@ -337,80 +342,24 @@ export function Daily() {
 
       {showToast && (
         <div className="fixed bottom-6 left-4 right-4 md:left-1/2 md:-translate-x-1/2 md:max-w-md bg-slate-900 border border-slate-800 text-white p-4 rounded-2xl shadow-xl z-50 flex items-start gap-3 animate-bounce">
-          <div className="bg-emerald-500/20 p-2 rounded-lg text-emerald-400 shrink-0">
-            <svg className="w-5 h-5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7"></path></svg>
-          </div>
+          {toastType === 'success' ? (
+            <div className="bg-emerald-500/20 p-2 rounded-lg text-emerald-400 shrink-0">
+              <svg className="w-5 h-5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7"></path>
+              </svg>
+            </div>
+          ) : (
+            <div className="bg-blue-500/20 p-2 rounded-lg text-blue-400 shrink-0">
+              <svg className="w-5 h-5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+            </div>
+          )}
           <div className="flex-1">
-            <p className="font-bold text-xs text-slate-100">Export Succeeded!</p>
+            <p className="font-bold text-xs text-slate-100">{toastTitle}</p>
             <p className="text-[11px] text-slate-300 mt-0.5 leading-relaxed">{toastMessage}</p>
           </div>
-          <button onClick={() => setShowToast(false)} className="text-slate-400 hover:text-white font-bold text-sm leading-none p-1">✕</button>
-        </div>
-      )}
-
-      {showIOSHint && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 transition-opacity">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 relative space-y-6">
-            <button
-              onClick={() => setShowIOSHint(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1.5 bg-slate-50 hover:bg-slate-100 rounded-full transition-colors cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
-
-            <div className="flex flex-col items-center text-center space-y-3">
-              <div className="w-20 h-20 rounded-2xl shadow-md border border-slate-100 overflow-hidden shrink-0 bg-slate-50">
-                <img
-                  src="/logo.png"
-                  alt="DoodhSetu App Icon"
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-slate-900">Add DoodhSetu to Home Screen</h3>
-                <p className="text-xs text-slate-400 mt-0.5 font-medium px-4">Open this website directly from your mobile screen with the new App icon!</p>
-              </div>
-            </div>
-
-            <hr className="border-slate-100" />
-
-            <div className="space-y-4 text-left">
-              <div className="flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-blue-50 text-blue-600 font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
-                  1
-                </div>
-                <div className="text-xs text-slate-600 leading-relaxed">
-                  Tap the <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 text-slate-800 font-bold">Share 📥</span> or browser menu button in your mobile browser.
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-blue-50 text-blue-600 font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
-                  2
-                </div>
-                <div className="text-xs text-slate-600 leading-relaxed">
-                  Scroll down the options menu and choose <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 text-slate-800 font-bold">"Add to Home Screen" ➕</span>.
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <div className="w-6 h-6 rounded-full bg-blue-50 text-blue-600 font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
-                  3
-                </div>
-                <div className="text-xs text-slate-600 leading-relaxed">
-                  Confirm the title "DoodhSetu" and tap <span className="text-blue-600 font-bold">"Add"</span> in the top-right corner.
-                </div>
-              </div>
-            </div>
-
-            <button
-              onClick={() => setShowIOSHint(false)}
-              className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition-colors duration-150 cursor-pointer active:scale-95"
-            >
-              Got it, Perfect!
-            </button>
-          </div>
+          <button onClick={() => setShowToast(false)} className="text-slate-400 hover:text-white font-bold text-sm leading-none p-1 cursor-pointer">✕</button>
         </div>
       )}
     </div>
