@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Eye, EyeOff, Coins, LogOut, Loader2 } from 'lucide-react';
 import { getVendorPassword, firestore } from '../lib/firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc } from 'firebase/firestore';
 
 export interface User {
   uid: string;
@@ -82,7 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     prefetchCloudPassword();
   }, [user]);
 
-  // Real-time security sync subscription: Lock out any device immediately if the vendor password changes
+  // Real-time security sync subscription: Lock out any device immediately if the vendor password or session salt changes
   useEffect(() => {
     const authRef = doc(firestore, 'config/auth');
     const unsubscribe = onSnapshot(authRef, (snapshot) => {
@@ -98,6 +98,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // If local password doesn't match cloud password, lock them out!
             if (localPass && localPass !== currentCloudPass) {
               console.warn('Real-time security sync: Master vendor password mismatch detected! Locking session.');
+              logOut();
+              return;
+            }
+
+            // Real-time session salt check to enable logging out of all devices remotely
+            const cloudSalt = data.sessionSalt || '';
+            const localSalt = localStorage.getItem('localUserSessionSalt') || '';
+            if (cloudSalt && localSalt && localSalt !== cloudSalt) {
+              console.warn('Real-time security sync: Session salt mismatch detected! Locking session.');
               logOut();
             }
           }
@@ -127,11 +136,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         try {
-          const currentPass = await getVendorPassword();
+          const authRef = doc(firestore, 'config/auth');
+          const snap = await getDoc(authRef);
+          let currentPass = 'MilkJune26';
+          let cloudSalt = '';
+          if (snap.exists()) {
+            const data = snap.data();
+            currentPass = data.password || 'MilkJune26';
+            cloudSalt = data.sessionSalt || '';
+          }
           setCachedCloudPass(currentPass);
           
-          if (!localPass || localPass !== currentPass) {
-            console.warn('Active master password mismatch key. Locking session on start.');
+          const localSalt = localStorage.getItem('localUserSessionSalt') || '';
+
+          if (!localPass || localPass !== currentPass || (cloudSalt && localSalt && localSalt !== cloudSalt)) {
+            console.warn('Active master password or session salt mismatch key. Locking session on start.');
             logOut();
           } else {
             setUser({ uid: savedUser, role: 'vendor' });
@@ -165,10 +184,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (lowerId === 'doodhsetu') {
         // Try getting the newest Firestore cloud password first; fallback to local cache on failure (offline/timeout/network err)
         let correctPass = 'MilkJune26';
+        let cloudSalt = '';
         try {
-          correctPass = await getVendorPassword();
+          const authRef = doc(firestore, 'config/auth');
+          const snap = await getDoc(authRef);
+          if (snap.exists()) {
+            const data = snap.data();
+            correctPass = data.password || 'MilkJune26';
+            cloudSalt = data.sessionSalt || '';
+          }
         } catch (err) {
-          console.warn('Real-time vendor password fetch failed, using local/cache fallback:', err);
+          console.warn('Real-time vendor info fetch failed, using local/cache fallback:', err);
           correctPass = cachedCloudPass || localStorage.getItem('cached_vendor_password') || 'MilkJune26';
         }
 
@@ -178,6 +204,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           localStorage.setItem('localUserRole', u.role);
           localStorage.setItem('localUserPassword', submittedPass);
           localStorage.setItem('cached_vendor_password', submittedPass);
+          localStorage.setItem('localUserSessionSalt', cloudSalt);
           setUser(u);
         } else {
           setError('Invalid Vendor password.');

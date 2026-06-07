@@ -11,7 +11,7 @@ import {
   subscribeToGoogleConnection
 } from '../lib/googleDriveAndSheets';
 import { getCowMilkPrice, getBuffaloMilkPrice, setCustomMilkPrices } from '../lib/utils';
-import { updateVendorPassword } from '../lib/firebase';
+import { updateVendorPassword, forceLogoutAllDevices } from '../lib/firebase';
 
 export function Settings() {
   const { logOut, user } = useAuth();
@@ -34,6 +34,29 @@ export function Settings() {
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [updatingPassword, setUpdatingPassword] = useState(false);
+
+  // Global logout state
+  const [loggingOutAll, setLoggingOutAll] = useState(false);
+  const [allStatusMessage, setAllStatusMessage] = useState('');
+
+  const handleLogOutAllDevices = async () => {
+    if (!window.confirm("Are you sure you want to log out all connected devices? This will instantly sign out every device using this account (including this one), and requires typing your ID and password again.")) {
+      return;
+    }
+    setLoggingOutAll(true);
+    setAllStatusMessage('');
+    try {
+      await forceLogoutAllDevices();
+      setAllStatusMessage('All other sessions revoked. Redirecting...');
+      setTimeout(() => {
+        logOut();
+      }, 1500);
+    } catch (err: any) {
+      console.error(err);
+      setAllStatusMessage('Error triggering global logout.');
+      setLoggingOutAll(false);
+    }
+  };
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -408,17 +431,51 @@ export function Settings() {
 
         {/* Existing account settings */}
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col gap-6">
-          <div className="flex items-center justify-between">
+          <div className="space-y-1">
+            <h2 className="font-semibold text-lg text-slate-900">Account & Sessions</h2>
+            <p className="text-slate-500 text-sm">Manage active sessions and sign out of the Milk Vendor app.</p>
+          </div>
+
+          <hr className="border-slate-100" />
+
+          {allStatusMessage && (
+            <div className="p-3 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-xl text-sm font-semibold animate-pulse">
+              {allStatusMessage}
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
             <div className="flex flex-col">
-              <h2 className="font-semibold text-lg text-slate-900">Account</h2>
-              <p className="text-slate-500 text-sm">Sign out of the Milk Vendor Dashboard</p>
+              <h3 className="font-medium text-slate-800">Local Session Only</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Sign out of the currently active dashboard on this browser window.</p>
             </div>
             <button
               onClick={logOut}
-              className="flex items-center gap-2 py-2 px-4 bg-red-50 text-red-600 hover:bg-red-100 rounded-lg font-medium transition"
+              className="flex items-center justify-center gap-2 py-3 px-6 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 rounded-xl font-semibold transition text-sm cursor-pointer active:scale-95 whitespace-nowrap"
             >
-              <LogOut className="w-5 h-5" />
-              Logout
+              <LogOut className="w-4 h-4" />
+              Sign Out from This Device
+            </button>
+          </div>
+
+          <hr className="border-slate-100/60" />
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+            <div className="flex flex-col">
+              <h3 className="font-medium text-red-700">Global Session Lockout</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Terminate all active device instances connected to Doodh Setu immediately.</p>
+            </div>
+            <button
+              onClick={handleLogOutAllDevices}
+              disabled={loggingOutAll}
+              className="flex items-center justify-center gap-2 py-3 px-6 bg-red-50 hover:bg-red-100 disabled:opacity-50 text-red-600 hover:text-red-700 border border-red-200 hover:border-red-300 rounded-xl font-semibold transition text-sm cursor-pointer active:scale-95 whitespace-nowrap lg:self-center"
+            >
+              {loggingOutAll ? (
+                <Loader2 className="w-4 h-4 animate-spin text-red-600" />
+              ) : (
+                <Lock className="w-4 h-4 text-red-500" />
+              )}
+              Log Out All Devices
             </button>
           </div>
         </div>

@@ -70,7 +70,8 @@ export async function updateVendorPassword(newPassword: string): Promise<{ synce
   localStorage.setItem(CACHE_VENDOR_KEY, newPassword);
   
   // Start the Firestore setDoc write. Firestore maintains an offline queue, so it registers immediately in cache.
-  const writePromise = setDoc(authRef, { password: newPassword });
+  const newSalt = Date.now().toString();
+  const writePromise = setDoc(authRef, { password: newPassword, sessionSalt: newSalt });
   
   // We'll give it up to 1.5 seconds to try and resolve over the network.
   try {
@@ -93,6 +94,23 @@ export async function updateVendorPassword(newPassword: string): Promise<{ synce
     }
     throw err;
   }
+}
+
+export async function forceLogoutAllDevices(): Promise<void> {
+  const authRef = doc(firestore, AUTH_DOC_PATH);
+  let currentPassword = DEFAULT_PASSWORD;
+  try {
+    const snap = await getDocFromServer(authRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      currentPassword = data.password || DEFAULT_PASSWORD;
+    }
+  } catch (err) {
+    console.warn("Could not get password from server for forced logout, checking cache instead", err);
+    currentPassword = localStorage.getItem(CACHE_VENDOR_KEY) || DEFAULT_PASSWORD;
+  }
+  const newSalt = Date.now().toString();
+  await setDoc(authRef, { password: currentPassword, sessionSalt: newSalt });
 }
 
 export async function getOwnerPassword(): Promise<string> {
