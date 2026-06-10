@@ -128,7 +128,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (savedUser && savedRole === 'vendor') {
         const canonical = savedUser.replace(/\s+/g, '').toLowerCase();
         
-        if (canonical !== 'doodhsetu' && canonical !== 'milkvendor') {
+        if (canonical !== 'doodhsetu' && canonical !== 'milkvendor' && canonical !== 'saiwagh') {
           console.warn('Legacy or unauthorized user ID detected on startup. Clearing session.');
           logOut();
           setLoading(false);
@@ -138,18 +138,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           const authRef = doc(firestore, 'config/auth');
           const snap = await getDoc(authRef);
-          let currentPass = 'Milk0626';
+          let currentPass = 'Sai123';
           let cloudSalt = '';
           if (snap.exists()) {
             const data = snap.data();
-            currentPass = data.password || 'Milk0626';
+            currentPass = data.password || 'Sai123';
             cloudSalt = data.sessionSalt || '';
           }
           setCachedCloudPass(currentPass);
           
           const localSalt = localStorage.getItem('localUserSessionSalt') || '';
 
-          if (!localPass || (localPass !== currentPass && localPass !== 'Milk0626') || (cloudSalt && localSalt && localSalt !== cloudSalt)) {
+          if (!localPass || (localPass !== currentPass && localPass !== 'Sai123') || (cloudSalt && localSalt && localSalt !== cloudSalt)) {
             console.warn('Active master password or session salt mismatch key. Locking session on start.');
             logOut();
           } else {
@@ -157,8 +157,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         } catch (err) {
           console.warn('Real-time password check on startup failed (offline fallback mode):', err);
-          const cachedPass = cachedCloudPass || localStorage.getItem('cached_vendor_password') || 'Milk0626';
-          if (!localPass || (localPass !== cachedPass && localPass !== 'Milk0626')) {
+          const cachedPass = cachedCloudPass || localStorage.getItem('cached_vendor_password') || 'Sai123';
+          if (!localPass || (localPass !== cachedPass && localPass !== 'Sai123')) {
             logOut();
           } else {
             setUser({ uid: savedUser, role: 'vendor' });
@@ -181,25 +181,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const submittedPass = inputPass.trim();
 
     try {
-      if (lowerId === 'doodhsetu' || lowerId === 'milkvendor') {
+      if (lowerId === 'doodhsetu' || lowerId === 'milkvendor' || lowerId === 'saiwagh') {
         // Try getting the newest Firestore cloud password first; fallback to local cache on failure (offline/timeout/network err)
-        let correctPass = 'Milk0626';
+        let correctPass = 'Sai123';
         let cloudSalt = '';
         try {
           const authRef = doc(firestore, 'config/auth');
           const snap = await getDoc(authRef);
           if (snap.exists()) {
             const data = snap.data();
-            correctPass = data.password || 'Milk0626';
+            correctPass = data.password || 'Sai123';
             cloudSalt = data.sessionSalt || '';
           }
         } catch (err) {
           console.warn('Real-time vendor info fetch failed, using local/cache fallback:', err);
-          correctPass = cachedCloudPass || localStorage.getItem('cached_vendor_password') || 'Milk0626';
+          correctPass = cachedCloudPass || localStorage.getItem('cached_vendor_password') || 'Sai123';
         }
 
-        if (submittedPass === correctPass || submittedPass === 'Milk0626') {
-          const u: User = { uid: 'Doodh Setu', role: 'vendor' };
+        if (submittedPass === correctPass || submittedPass === 'Sai123') {
+          let displayName = 'Doodh Setu';
+          if (lowerId === 'saiwagh') {
+            displayName = 'Sai Wagh';
+          } else if (lowerId === 'milkvendor') {
+            displayName = 'Milk Vendor';
+          }
+          const u: User = { uid: displayName, role: 'vendor' };
           localStorage.setItem('localUser', u.uid);
           localStorage.setItem('localUserRole', u.role);
           localStorage.setItem('localUserPassword', submittedPass);
@@ -210,7 +216,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setError('Invalid Vendor password.');
         }
       } else {
-        setError('Invalid ID. Use "Doodh Setu" or "Milk Vendor" to sign in.');
+        setError('Invalid ID. Use "Sai Wagh" to sign in.');
       }
     } catch (err) {
       console.error(err);
@@ -245,7 +251,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 value={inputId} 
                 onChange={e => setInputId(e.target.value)} 
                 className="w-full p-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                placeholder="e.g. Milk Vendor or Doodh Setu"
+                placeholder="e.g. Sai Wagh"
                 required 
                 disabled={loggingIn}
               />
